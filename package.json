@@ -1,0 +1,16 @@
+{
+  "name": "batumi-guide-bot",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "nanoid": "^5.0.7",
+    "telegraf": "^4.16.3"
+  }
+}

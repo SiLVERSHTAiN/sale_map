@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <title>Batumi Guide</title>
+    <style>
+        body{margin:0;font-family:-apple-system,BlinkMacSystemFont,Inter,Segoe UI,Roboto,Arial;background:#0f172a;color:#e2e8f0}
+        .wrap{max-width:520px;margin:0 auto;padding:16px}
+        .card{background:#111c33;border:1px solid #1f2a44;border-radius:16px;padding:16px;margin:12px 0}
+        h1{font-size:22px;margin:8px 0 2px}
+        .muted{color:#94a3b8;font-size:13px;line-height:1.4}
+        .btn{width:100%;border:0;border-radius:14px;padding:14px 14px;font-size:16px;margin-top:10px;cursor:pointer}
+        .primary{background:#22c55e;color:#06240f}
+        .secondary{background:#334155;color:#e2e8f0}
+        .pill{display:inline-block;background:#1f2a44;color:#cbd5e1;padding:6px 10px;border-radius:999px;font-size:12px;margin-top:8px}
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <div class="card">
+            <div class="pill">Organic Maps / MAPS.ME • .kmz</div>
+            <h1>Путеводитель по Батуми</h1>
+            <div class="muted">
+                Точки на карте: еда, виды, прогулки, полезные места. Импортируется одним нажатием в Organic Maps / MAPS.ME.
+            </div>
+
+            <button class="btn secondary" id="mini">✅ Забрать mini-версию</button>
+            <button class="btn primary" id="buy">⭐ Купить полную версию (Stars)</button>
+            <button class="btn secondary" id="how">❓ Как установить</button>
+        </div>
+
+        <div class="card">
+            <h1 style="font-size:18px;margin:0 0 6px">Что внутри</h1>
+            <div class="muted">
+                • Сгруппированные точки (еда/кофе/виды/полезное)<br/>
+                • Пояснения что выбрать и когда ехать<br/>
+                • Можно обновлять — я пришлю новую версию
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+
+        const send = (action) => tg.sendData(JSON.stringify({ action }));
+
+        document.getElementById('mini').onclick = () => send("GET_MINI");
+        document.getElementById('buy').onclick = () => send("BUY_FULL");
+        document.getElementById('how').onclick = () => send("HOW_TO");
+    </script>
+</body>
+</html>
