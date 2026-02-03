@@ -2,63 +2,372 @@
 <html lang="ru">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>Путеводитель по Батуми</title>
+
+    <!-- Telegram WebApp API -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <title>Batumi Guide</title>
+
     <style>
-        body{margin:0;font-family:-apple-system,BlinkMacSystemFont,Inter,Segoe UI,Roboto,Arial;background:#0f172a;color:#e2e8f0}
-        .wrap{max-width:520px;margin:0 auto;padding:16px}
-        .card{background:#111c33;border:1px solid #1f2a44;border-radius:16px;padding:16px;margin:12px 0}
-        h1{font-size:22px;margin:8px 0 2px}
-        .muted{color:#94a3b8;font-size:13px;line-height:1.4}
-        .btn{width:100%;border:0;border-radius:14px;padding:14px 14px;font-size:16px;margin-top:10px;cursor:pointer}
-        .primary{background:#22c55e;color:#06240f}
-        .secondary{background:#334155;color:#e2e8f0}
-        .pill{display:inline-block;background:#1f2a44;color:#cbd5e1;padding:6px 10px;border-radius:999px;font-size:12px;margin-top:8px}
+    :root{
+        --bg:#0b1220;
+        --card:#0f1b33;
+        --card2:#0c172b;
+        --text:#e5e7eb;
+        --muted:#9aa4b2;
+        --stroke:rgba(255,255,255,.08);
+        --accent:#22c55e;
+        --accentText:#06240f;
+        --btn:#1f2a44;
+        --btnText:#e5e7eb;
+        --shadow: 0 18px 40px rgba(0,0,0,.35);
+        --radius: 18px;
+    }
+
+    *{box-sizing:border-box}
+    body{
+        margin:0;
+        background:var(--bg);
+        color:var(--text);
+        font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Arial,sans-serif;
+        -webkit-font-smoothing: antialiased;
+        line-height:1.35;
+    }
+
+    .wrap{
+        max-width: 560px;
+        margin: 0 auto;
+        padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+    }
+
+    .hero{
+        background: radial-gradient(1200px 500px at 30% -30%, rgba(34,197,94,.25), transparent 55%),
+                    radial-gradient(800px 500px at 110% 30%, rgba(99,102,241,.18), transparent 50%),
+                    var(--card);
+        border:1px solid var(--stroke);
+        border-radius: calc(var(--radius) + 6px);
+        padding: 18px;
+        box-shadow: var(--shadow);
+        overflow:hidden;
+    }
+
+    .pill{
+        display:inline-flex;
+        align-items:center;
+        gap:8px;
+        padding: 7px 10px;
+        border-radius:999px;
+        background: rgba(255,255,255,.06);
+        border:1px solid var(--stroke);
+        color: var(--muted);
+        font-size: 12px;
+        letter-spacing:.2px;
+    }
+
+    h1{
+        margin: 12px 0 6px;
+        font-size: 26px;
+        line-height:1.1;
+        letter-spacing: -0.3px;
+    }
+
+    .lead{
+        margin:0;
+        color: var(--muted);
+        font-size: 14px;
+    }
+
+    .row{
+        display:flex;
+        gap:10px;
+        flex-wrap:wrap;
+        margin-top: 14px;
+    }
+    .badge{
+        flex: 1 1 160px;
+        min-width: 160px;
+        background: rgba(255,255,255,.05);
+        border:1px solid var(--stroke);
+        border-radius: 14px;
+        padding: 10px 12px;
+    }
+    .badge .t{
+        color: var(--muted);
+        font-size: 12px;
+        margin-bottom: 4px;
+    }
+    .badge .v{
+        font-size: 15px;
+        font-weight: 700;
+    }
+
+    .actions{
+        margin-top: 14px;
+        display:flex;
+        flex-direction:column;
+        gap:10px;
+    }
+
+    .btn{
+        width:100%;
+        border: 1px solid var(--stroke);
+        background: var(--btn);
+        color: var(--btnText);
+        border-radius: 16px;
+        padding: 14px 14px;
+        font-size: 16px;
+        font-weight: 700;
+        cursor:pointer;
+        box-shadow: 0 8px 24px rgba(0,0,0,.22);
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        gap:10px;
+        user-select:none;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .btn:active{ transform: translateY(1px); }
+
+    .btn.primary{
+        background: var(--accent);
+        color: var(--accentText);
+        border-color: rgba(34,197,94,.35);
+        box-shadow: 0 12px 28px rgba(34,197,94,.22);
+    }
+
+    .btn.ghost{
+        background: transparent;
+        box-shadow:none;
+    }
+
+    .section{
+        margin-top: 14px;
+        background: var(--card2);
+        border:1px solid var(--stroke);
+        border-radius: var(--radius);
+        padding: 16px;
+    }
+
+    .section h2{
+        margin:0 0 10px;
+        font-size: 18px;
+        letter-spacing: -.2px;
+    }
+
+    .list{
+        margin:0;
+        padding-left: 18px;
+        color: var(--muted);
+        font-size: 14px;
+    }
+    .list li{ margin: 6px 0; }
+
+    .fine{
+        margin-top: 10px;
+        color: rgba(154,164,178,.9);
+        font-size: 12px;
+    }
+
+    .faq{
+        display:flex;
+        flex-direction:column;
+        gap:10px;
+    }
+    details{
+        background: rgba(255,255,255,.04);
+        border: 1px solid var(--stroke);
+        border-radius: 14px;
+        padding: 12px 12px;
+    }
+    summary{
+        cursor:pointer;
+        font-weight: 700;
+        font-size: 14px;
+        color: var(--text);
+        list-style:none;
+    }
+    summary::-webkit-details-marker{display:none}
+    details p{
+        margin: 8px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+    }
+
+    .footer{
+        margin-top: 14px;
+        color: rgba(154,164,178,.85);
+        font-size: 12px;
+        text-align:center;
+        padding-bottom: 6px;
+    }
+
+    .miniNote{
+        margin-top: 8px;
+        color: rgba(154,164,178,.9);
+        font-size: 12px;
+        text-align:center;
+    }
+
+    .hint{
+        margin-top: 10px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        border: 1px dashed rgba(255,255,255,.18);
+        color: rgba(229,231,235,.9);
+        font-size: 12px;
+        background: rgba(255,255,255,.03);
+    }
+    .hint b{ color: var(--text); }
+
+    /* small screens */
+    @media (max-width: 380px){
+        h1{font-size:24px}
+        .badge{min-width: 140px}
+    }
     </style>
 </head>
+
 <body>
     <div class="wrap">
-        <div class="card">
-            <div class="pill">Organic Maps / MAPS.ME • .kmz</div>
+        <div class="hero">
+            <div class="pill">Organic Maps / MAPS.ME · .kmz</div>
+            
             <h1>Путеводитель по Батуми</h1>
-            <div class="muted">
-                Точки на карте: еда, виды, прогулки, полезные места. Импортируется одним нажатием в Organic Maps / MAPS.ME.
+            <p class="lead">
+                Точки на карте: еда, виды, прогулки и полезные места.
+                Импортируется одним нажатием в Organic Maps / MAPS.ME.
+            </p>
+        
+            <div class="row">
+                <div class="badge">
+                <div class="t">Mini-версия</div>
+                <div class="v">Бесплатно ✅</div>
             </div>
-
-            <button class="btn secondary" id="mini">✅ Забрать mini-версию</button>
-            <button class="btn primary" id="buy">⭐ Купить полную версию (Stars)</button>
-            <button class="btn secondary" id="how">❓ Как установить</button>
+            <div class="badge">
+                <div class="t">Полная версия</div>
+                <div class="v">199 ⭐ Stars</div>
+            </div>
+            <div class="badge">
+                <div class="t">Обновления</div>
+                <div class="v">Включены ♻️</div>
+            </div>
+            </div>
+        
+            <div class="actions">
+                <button class="btn" id="mini">✅ Забрать mini-версию</button>
+                <button class="btn primary" id="buy">⭐ Купить полную версию (Stars)</button>
+                <button class="btn ghost" id="how">❓ Как установить</button>
+            </div>
+        
+            <div class="miniNote">
+                После нажатия мини-приложение закроется и бот пришлёт файл в чат.
+            </div>
         </div>
 
-        <div class="card">
-            <h1 style="font-size:18px;margin:0 0 6px">Что внутри</h1>
-            <div class="muted">
-                • Сгруппированные точки (еда/кофе/виды/полезное)<br/>
-                • Пояснения что выбрать и когда ехать<br/>
-                • Можно обновлять — я пришлю новую версию
+        <div class="section">
+            <h2>Что внутри</h2>
+            <ul class="list">
+                <li><b>Сгруппированные точки</b>: еда / кофе / виды / полезное</li>
+                <li><b>Пояснения</b> — что выбрать и когда лучше ехать</li>
+                <li><b>Можно обновлять</b> — пришлю новую версию (без повторной покупки)</li>
+            </ul>
+
+            <div class="hint">
+                <b>Важно:</b> файл в формате <b>.kmz</b>. Он импортируется в Organic Maps / MAPS.ME одним нажатием.
             </div>
+        </div>
+
+        <div class="section">
+            <h2>FAQ</h2>
+            <div class="faq">
+                <details>
+                    <summary>Где я получу файл после нажатия кнопки?</summary>
+                    <p>Файл придёт сообщением от бота прямо в этот чат. Это удобно: скачал → открыл → импортировал.</p>
+                </details>
+
+                <details>
+                    <summary>Что если у меня нет Stars?</summary>
+                    <p>Stars — самый простой вариант внутри Telegram. Позже добавим оплату картой (VISA/MC) отдельной кнопкой.</p>
+                </details>
+
+                <details>
+                    <summary>Можно ли скачать повторно после покупки?</summary>
+                    <p>Да. В чате бота будет кнопка “Скачать ещё раз”, чтобы не искать файл в истории сообщений.</p>
+                </details>
+
+                <details>
+                    <summary>Будут ли новые города?</summary>
+                    <p>Да — план постепенно расширять географию. Покупка привязана к продукту (город/версия).</p>
+                </details>
+            </div>
+        
+            <div class="fine">
+                Поддержка: если что-то не импортируется — напиши боту, я помогу.
+            </div>
+        </div>
+
+        <div class="footer">
+            © Sale_maps · Batumi Guide · 2026
         </div>
     </div>
 
     <script>
-        const tg = window.Telegram.WebApp;
-        tg.ready();
-        tg.expand();
+        const tg = window.Telegram?.WebApp;
+        
+        // Fallback for opening in a normal browser
+        const isTg = !!tg;
+        
+        function applyTelegramTheme(){
+            if (!isTg) return;
 
-        const send = (action) => {
-            if (!tg?.sendData) {
-                alert("sendData недоступен");
+            tg.ready();
+            tg.expand();
+
+            // Try to adapt to Telegram theme (dark/light)
+            const p = tg.themeParams || {};
+            const css = document.documentElement.style;
+
+            // Map telegram theme to our css vars (safe defaults if empty)
+            if (p.bg_color) css.setProperty('--bg', p.bg_color);
+            if (p.text_color) css.setProperty('--text', p.text_color);
+
+            // Telegram button color is often best for primary action
+            if (p.button_color) css.setProperty('--accent', p.button_color);
+            if (p.button_text_color) css.setProperty('--accentText', p.button_text_color);
+
+            // Header color (not always supported on all clients)
+            try { tg.setHeaderColor?.(p.bg_color || '#0b1220'); } catch(e){}
+        }
+
+        function haptic(type='impact', style='light'){
+            if (!isTg) return;
+            try{
+                const hf = tg.HapticFeedback;
+                if (!hf) return;
+                if (type === 'impact') hf.impactOccurred(style);
+                if (type === 'notification') hf.notificationOccurred(style);
+            }catch(e){}
+        }
+
+        function send(action){
+            const payload = JSON.stringify({ action });
+            if (!isTg){
+                alert('Открой это mini-приложение внутри Telegram, чтобы отправить действие боту.\n\nAction: ' + action);
                 return;
             }
-            tg.sendData(JSON.stringify({ action }));
-            if (tg?.close) tg.close();
-        };
+            tg.sendData(payload);
 
-        document.getElementById('mini').onclick = () => send("GET_MINI");
-        document.getElementById('buy').onclick = () => send("BUY_FULL");
-        document.getElementById('how').onclick = () => send("HOW_TO");
+            // Чтобы пользователь сразу увидел сообщение от бота — закрываем mini app
+            setTimeout(() => {
+                try { tg.close(); } catch(e){}
+            }, 80);
+        }
+
+        applyTelegramTheme();
+        
+        document.getElementById('mini').onclick = () => { haptic('impact','light'); send("GET_MINI"); };
+        document.getElementById('buy').onclick  = () => { haptic('impact','medium'); send("BUY_FULL"); };
+        document.getElementById('how').onclick  = () => { haptic('impact','light'); send("HOW_TO"); };
     </script>
-
 </body>
 </html>
