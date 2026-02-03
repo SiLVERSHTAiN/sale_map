@@ -1,6 +1,7 @@
 {
     "cities": [
-        { "id": "batumi", "name": "Батуми", "country": "GE", "active": true }
+        { "id": "batumi", "name": "Батуми", "country": "GE", "active": true },
+        { "id":"tbilisi", "name":"Тбилиси", "country":"GE", "active": true }
     ],
     "products": [
         {
@@ -9,6 +10,7 @@
             "type": "mini",
             "title": "Mini-версия",
             "subtitle": "Бесплатно ✅",
+            "description": "Короткий набор ключевых мест: еда, виды, прогулки и полезные точки.",
             "priceStars": 0,
             "file": "batumi-mini.kmz",
             "active": true
@@ -21,6 +23,27 @@
             "subtitle": "199 ⭐ Stars",
             "priceStars": 199,
             "file": "batumi-full.kmz",
+            "active": true
+        },
+        {
+            "id": "tbilisi_mini",
+            "cityId": "tbilisi",
+            "type": "mini",
+            "title": "Mini-версия",
+            "subtitle": "Бесплатно ✅",
+            "description": "Короткий набор ключевых мест: еда, виды, прогулки и полезные точки.",
+            "priceStars": 0,
+            "file": "tbilisi-mini.kmz",
+            "active": true
+        },
+        {
+            "id":"tbilisi_full",
+            "cityId":"tbilisi",
+            "type":"full",
+            "title":"Полная версия",
+            "subtitle":"199 ⭐ Stars",
+            "priceStars":199,
+            "file":"tbilisi-full.kmz",
             "active": true
         }
     ]

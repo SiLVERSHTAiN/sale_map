@@ -26,193 +26,177 @@
     </div>
 
     <script>
-        const tg = window.Telegram?.WebApp;
-        const isTg = !!tg;
+    const tg = window.Telegram?.WebApp;
+    const isTg = !!tg;
+
+    function applyTelegramTheme(){
+        if (!isTg) return;
+        tg.ready();
+        tg.expand();
         
-        function applyTelegramTheme(){
-            if (!isTg) return;
-            tg.ready();
-            tg.expand();
-
-            const css = document.documentElement.style;
-            const scheme = (tg.colorScheme || 'dark').toLowerCase();
-            const p = tg.themeParams || {};
-
-            if (scheme === 'light') {
-                css.setProperty('--bg',    '#f6f7fb');
-                css.setProperty('--card',  '#ffffff');
-                css.setProperty('--card2', '#ffffff');
-                css.setProperty('--text',  '#0f172a');
-                css.setProperty('--muted', '#334155');
-                css.setProperty('--stroke','rgba(15, 23, 42, .08)');
-                css.setProperty('--btn',   '#eef2ff');
-                css.setProperty('--btnText','#0f172a');
-                css.setProperty('--shadow','0 18px 40px rgba(15, 23, 42, .10)');
-            } else {
-                css.setProperty('--bg',    '#0b1220');
-                css.setProperty('--card',  '#0f1b33');
-                css.setProperty('--card2', '#0c172b');
-                css.setProperty('--text',  '#e5e7eb');
-                css.setProperty('--muted', '#9aa4b2');
-                css.setProperty('--stroke','rgba(255,255,255,.08)');
-                css.setProperty('--btn',   '#1f2a44');
-                css.setProperty('--btnText','#e5e7eb');
-                css.setProperty('--shadow','0 18px 40px rgba(0,0,0,.35)');
-            }
-
-            if (p.button_color) css.setProperty('--accent', p.button_color);
-            if (p.button_text_color) css.setProperty('--accentText', p.button_text_color);
-
-            try { tg.setHeaderColor?.(scheme === 'light' ? '#f6f7fb' : '#0b1220'); } catch(e){}
-            try { tg.setBackgroundColor?.(scheme === 'light' ? '#f6f7fb' : '#0b1220'); } catch(e){}
+        const css = document.documentElement.style;
+        const scheme = (tg.colorScheme || 'dark').toLowerCase();
+        const p = tg.themeParams || {};
+        
+        if (scheme === 'light') {
+            css.setProperty('--bg',    '#f6f7fb');
+            css.setProperty('--card',  '#ffffff');
+            css.setProperty('--card2', '#ffffff');
+            css.setProperty('--text',  '#0f172a');
+            css.setProperty('--muted', '#334155');
+            css.setProperty('--stroke','rgba(15, 23, 42, .08)');
+            css.setProperty('--btn',   '#eef2ff');
+            css.setProperty('--btnText','#0f172a');
+            css.setProperty('--shadow','0 18px 40px rgba(15, 23, 42, .10)');
+        } else {
+          // dark — базовые значения уже в css, можно не трогать
         }
+    
+        if (p.button_color) css.setProperty('--accent', p.button_color);
+        if (p.button_text_color) css.setProperty('--accentText', p.button_text_color);
+    
+        try { tg.setHeaderColor?.(scheme === 'light' ? '#f6f7fb' : '#0b1220'); } catch(e){}
+        try { tg.setBackgroundColor?.(scheme === 'light' ? '#f6f7fb' : '#0b1220'); } catch(e){}
+    }
 
-        function haptic(type='impact', style='light'){
-            if (!isTg) return;
-            try{
-                const hf = tg.HapticFeedback;
-                if (!hf) return;
-                if (type === 'impact') hf.impactOccurred(style);
-                if (type === 'notification') hf.notificationOccurred(style);
-            }catch(e){}
+    function haptic(type='impact', style='light'){
+        if (!isTg) return;
+        try{
+            const hf = tg.HapticFeedback;
+            if (!hf) return;
+            if (type === 'impact') hf.impactOccurred(style);
+            if (type === 'notification') hf.notificationOccurred(style);
+        }catch(e){}
+    }
+
+    // ВАЖНО: теперь send принимает (action, productId)
+    function send(action, productId){
+        const payload = JSON.stringify({ action, productId });
+        if (!isTg){
+            alert('Открой mini-приложение внутри Telegram.\n\n' + payload);
+            return;
         }
+        tg.sendData(payload);
+        setTimeout(() => { try { tg.close(); } catch(e){} }, 80);
+    }
 
-        function send(action, productId){
-            const payload = JSON.stringify({ action, productId });
-            if (!isTg){
-                alert('Открой mini-приложение внутри Telegram.\n\n' + payload);
-                return;
-            }
-            tg.sendData(payload);
+    async function loadCatalog(){
+        const res = await fetch('./products.json', { cache: 'no-store' });
+        if (!res.ok) throw new Error('products.json не загрузился (HTTP ' + res.status + ')');
+        return res.json();
+    }
 
-            // закрываем быстро, чтобы пользователь сразу увидел сообщение бота в чате
-            setTimeout(() => { try { tg.close(); } catch(e){} }, 80);
-        }
+    function esc(s){
+        return String(s ?? '')
+            .replaceAll('&','&amp;')
+            .replaceAll('<','&lt;')
+            .replaceAll('>','&gt;')
+            .replaceAll('"','&quot;')
+            .replaceAll("'","&#039;");
+    }
 
-        async function loadProducts(){
-            // pages cache может мешать — no-store помогает в dev
-            const res = await fetch('./products.json', { cache: 'no-store' });
-            if (!res.ok) throw new Error('Не удалось загрузить products.json (HTTP ' + res.status + ')');
-            return res.json();
-        }
+    function starsLabel(priceStars){
+        const n = Number(priceStars || 0);
+        return n <= 0 ? 'Бесплатно ✅' : `${n} ⭐ Stars`;
+    }
 
-        function escapeHtml(s){
-            return String(s ?? '')
-                .replaceAll('&','&amp;')
-                .replaceAll('<','&lt;')
-                .replaceAll('>','&gt;')
-                .replaceAll('"','&quot;')
-                .replaceAll("'","&#039;");
-        }
-
-        function starsLabel(priceStars){
-            if (!priceStars || Number(priceStars) <= 0) return 'Бесплатно ✅';
-            return `${priceStars} ⭐ Stars`;
-        }
-
-        function renderCityCard(city, products){
-            const cityProducts = products.filter(p => p.cityId === city.id && p.active !== false);
+    // Рисуем карточку города из твоих CSS-классов (.card, .pill, .badge, .btn...)
+    function renderCityCard(city, products){
+        const cityProducts = products.filter(p => p.cityId === city.id && p.active !== false);
+        const mini = cityProducts.find(p => p.type === 'mini');
+        const full = cityProducts.find(p => p.type === 'full');
+        
+        return `
+            <div class="card">
+                <div class="cardHeader">
+                    <div class="pill">Organic Maps / MAPS.ME · .kmz</div>
+                    ${city.country ? `<div class="pill">${esc(city.country)}</div>` : ''}
+                </div>
             
-            const mini = cityProducts.find(p => p.type === 'mini');
-            const full = cityProducts.find(p => p.type === 'full');
+                <div class="title">${esc(city.name)}</div>
+                <p class="lead">Готовый набор точек: еда, виды, прогулки, полезное.</p>
             
-            const miniPrice = mini ? starsLabel(mini.priceStars) : '';
-            const fullPrice = full ? starsLabel(full.priceStars) : '';
-            
-            const subtitle = `Organic Maps / MAPS.ME · .kmz`;
-            const cityName = escapeHtml(city.name);
-            const country = escapeHtml(city.country || '');
-            
-            return `
-                <div class="card">
-                    <div class="cardHeader">
-                        <div class="pill">${escapeHtml(subtitle)}</div>
-                        <div class="pill">${country ? `${country}` : ' '}</div>
-                    </div>
-
-                    <div class="title">${cityName}</div>
-                    <p class="lead">Готовый набор точек: еда, виды, прогулки, полезное.</p>
-
-                    <div class="row">
-                        ${mini ? `
-                            <div class="badge">
-                                <div class="t">${escapeHtml(mini.title || 'Mini')}</div>
-                                <div class="v">${escapeHtml(mini.subtitle || miniPrice)}</div>
-                            </div>` : ''
-                        }
-                        ${full ? `
-                            <div class="badge">
-                                <div class="t">${escapeHtml(full.title || 'Full')}</div>
-                                <div class="v">${escapeHtml(full.subtitle || fullPrice)}</div>
-                            </div>` : ''
-                        }
+                <div class="row">
+                    ${mini ? `
                         <div class="badge">
-                            <div class="t">Обновления</div>
-                            <div class="v">Включены ♻️</div>
-                        </div>
-                    </div>
-
-                    <div class="actions">
-                        ${mini ? `
-                            <button class="btn" data-action="GET_FILE" data-product="${escapeHtml(mini.id)}">
-                                ✅ Забрать (${escapeHtml(mini.subtitle || miniPrice)})
-                            </button>` : ''
-                        }
-                        
-                        ${full ? `
-                            <button class="btn primary" data-action="BUY" data-product="${escapeHtml(full.id)}">
-                                ⭐ Купить (${escapeHtml(full.subtitle || fullPrice)})
-                            </button>` : ''
-                        }
-                        
-                        <button class="btn ghost" data-action="HOW_TO">
-                            ❓ Как установить
-                        </button>
-                    </div>
-
-                    <div class="hint">
-                        <div class="icon">ℹ️</div>
-                        <div><b>Важно:</b> файл <b>.kmz</b> придёт сообщением от бота в этот чат.</div>
+                            <div class="t">${esc(mini.title || 'Mini')}</div>
+                            <div class="v">${esc(mini.subtitle || starsLabel(mini.priceStars))}</div>
+                        </div>` : ''
+                    }
+                    
+                    ${full ? `
+                        <div class="badge">
+                            <div class="t">${esc(full.title || 'Full')}</div>
+                            <div class="v">${esc(full.subtitle || starsLabel(full.priceStars))}</div>
+                        </div>` : ''
+                    }
+                    
+                    <div class="badge">
+                        <div class="t">Обновления</div>
+                        <div class="v">Включены ♻️</div>
                     </div>
                 </div>
-            `;
-        }
+            
+                <div class="actions">
+                    ${mini ? `
+                        <button class="btn" data-action="GET_FILE" data-product="${esc(mini.id)}">
+                            ✅ Забрать (${esc(mini.subtitle || starsLabel(mini.priceStars))})
+                        </button>` : ''
+                    }
+                    
+                    ${full ? `
+                        <button class="btn primary" data-action="BUY" data-product="${esc(full.id)}">
+                            ⭐ Купить (${esc(full.subtitle || starsLabel(full.priceStars))})
+                        </button>` : ''
+                    }
+                    
+                    <button class="btn ghost" data-action="HOW_TO">
+                        ❓ Как установить
+                    </button>
+                </div>
+            
+                <div class="hint">
+                    <div class="icon">ℹ️</div>
+                    <div><b>Важно:</b> файл <b>.kmz</b> придёт сообщением от бота в этот чат.</div>
+                </div>
+            </div>
+        `;
+    }
 
-        function bindButtons(root){
-            root.querySelectorAll('button[data-action]').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const action = btn.getAttribute('data-action');
-                    const productId = btn.getAttribute('data-product') || undefined;
-                    haptic('impact', action === 'BUY' ? 'medium' : 'light');
-                    send(action, productId);
-                });
+    function bindButtons(root){
+        root.querySelectorAll('button[data-action]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const action = btn.getAttribute('data-action');
+                const productId = btn.getAttribute('data-product') || undefined;
+                
+                haptic('impact', action === 'BUY' ? 'medium' : 'light');
+                send(action, productId);
             });
-        }
+        });
+    }
 
-        async function init(){
-            applyTelegramTheme();
+    async function init(){
+        applyTelegramTheme();
+        const el = document.getElementById('catalog');
+        try{
+            const data = await loadCatalog();
+            const cities = (data.cities || []).filter(c => c && c.active !== false);
+            const products = (data.products || []).filter(p => p && p.active !== false);
             
-            const catalogEl = document.getElementById('catalog');
-            
-            try{
-                const data = await loadProducts();
-                
-                const cities = (data.cities || []).filter(c => c && c.active !== false);
-                const products = (data.products || []).filter(p => p && p.active !== false);
-                
-                if (!cities.length){
-                    catalogEl.innerHTML = `<div class="error">Нет активных городов в products.json</div>`;
-                    return;
-                }
-
-                catalogEl.innerHTML = cities.map(c => renderCityCard(c, products)).join('');
-                bindButtons(catalogEl);
-            }catch(e){
-                catalogEl.innerHTML = `<div class="error">Ошибка загрузки каталога:\n${escapeHtml(e.message || e)}</div>`;
+            if (!cities.length){
+                el.innerHTML = `<div class="error">Нет активных городов в products.json</div>`;
+                return;
             }
+        
+            el.innerHTML = cities.map(c => renderCityCard(c, products)).join('');
+            bindButtons(el);
+        }catch(e){
+            el.innerHTML = `<div class="error">Ошибка:\n${esc(e.message || e)}</div>`;
         }
+    }
 
-        init();
+    init();
     </script>
+
 </body>
 </html>
