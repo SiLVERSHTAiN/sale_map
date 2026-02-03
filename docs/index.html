@@ -7,224 +7,7 @@
 
     <!-- Telegram WebApp API -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-
-    <style>
-    :root{
-        --bg:#0b1220;
-        --card:#0f1b33;
-        --card2:#0c172b;
-        --text:#e5e7eb;
-        --muted:#9aa4b2;
-        --stroke:rgba(255,255,255,.08);
-        --accent:#22c55e;
-        --accentText:#06240f;
-        --btn:#1f2a44;
-        --btnText:#e5e7eb;
-        --shadow: 0 18px 40px rgba(0,0,0,.35);
-        --radius: 18px;
-    }
-
-    *{box-sizing:border-box}
-    body{
-        margin:0;
-        background:var(--bg);
-        color:var(--text);
-        font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Arial,sans-serif;
-        -webkit-font-smoothing: antialiased;
-        line-height:1.35;
-    }
-
-    .wrap{
-        max-width: 560px;
-        margin: 0 auto;
-        padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
-    }
-
-    .hero{
-        background: radial-gradient(1200px 500px at 30% -30%, rgba(34,197,94,.25), transparent 55%),
-                    radial-gradient(800px 500px at 110% 30%, rgba(99,102,241,.18), transparent 50%),
-                    var(--card);
-        border:1px solid var(--stroke);
-        border-radius: calc(var(--radius) + 6px);
-        padding: 18px;
-        box-shadow: var(--shadow);
-        overflow:hidden;
-    }
-
-    .pill{
-        display:inline-flex;
-        align-items:center;
-        gap:8px;
-        padding: 7px 10px;
-        border-radius:999px;
-        background: rgba(255,255,255,.06);
-        border:1px solid var(--stroke);
-        color: var(--muted);
-        font-size: 12px;
-        letter-spacing:.2px;
-    }
-
-    h1{
-        margin: 12px 0 6px;
-        font-size: 26px;
-        line-height:1.1;
-        letter-spacing: -0.3px;
-    }
-
-    .lead{
-        margin:0;
-        color: var(--muted);
-        font-size: 14px;
-    }
-
-    .row{
-        display:flex;
-        gap:10px;
-        flex-wrap:wrap;
-        margin-top: 14px;
-    }
-    .badge{
-        flex: 1 1 160px;
-        min-width: 160px;
-        background: rgba(255,255,255,.05);
-        border:1px solid var(--stroke);
-        border-radius: 14px;
-        padding: 10px 12px;
-    }
-    .badge .t{
-        color: var(--muted);
-        font-size: 12px;
-        margin-bottom: 4px;
-    }
-    .badge .v{
-        font-size: 15px;
-        font-weight: 700;
-    }
-
-    .actions{
-        margin-top: 14px;
-        display:flex;
-        flex-direction:column;
-        gap:10px;
-    }
-
-    .btn{
-        width:100%;
-        border: 1px solid var(--stroke);
-        background: var(--btn);
-        color: var(--btnText);
-        border-radius: 16px;
-        padding: 14px 14px;
-        font-size: 16px;
-        font-weight: 700;
-        cursor:pointer;
-        box-shadow: 0 8px 24px rgba(0,0,0,.22);
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        gap:10px;
-        user-select:none;
-        -webkit-tap-highlight-color: transparent;
-    }
-    .btn:active{ transform: translateY(1px); }
-
-    .btn.primary{
-        background: var(--accent);
-        color: var(--accentText);
-        border-color: rgba(34,197,94,.35);
-        box-shadow: 0 12px 28px rgba(34,197,94,.22);
-    }
-
-    .btn.ghost{
-        background: transparent;
-        box-shadow:none;
-    }
-
-    .section{
-        margin-top: 14px;
-        background: var(--card2);
-        border:1px solid var(--stroke);
-        border-radius: var(--radius);
-        padding: 16px;
-    }
-
-    .section h2{
-        margin:0 0 10px;
-        font-size: 18px;
-        letter-spacing: -.2px;
-    }
-
-    .list{
-        margin:0;
-        padding-left: 18px;
-        color: var(--muted);
-        font-size: 14px;
-    }
-    .list li{ margin: 6px 0; }
-
-    .fine{
-        margin-top: 10px;
-        color: rgba(154,164,178,.9);
-        font-size: 12px;
-    }
-
-    .faq{
-        display:flex;
-        flex-direction:column;
-        gap:10px;
-    }
-    details{
-        background: rgba(255,255,255,.04);
-        border: 1px solid var(--stroke);
-        border-radius: 14px;
-        padding: 12px 12px;
-    }
-    summary{
-        cursor:pointer;
-        font-weight: 700;
-        font-size: 14px;
-        color: var(--text);
-        list-style:none;
-    }
-    summary::-webkit-details-marker{display:none}
-    details p{
-        margin: 8px 0 0;
-        color: var(--muted);
-        font-size: 13px;
-    }
-
-    .footer{
-        margin-top: 14px;
-        color: rgba(154,164,178,.85);
-        font-size: 12px;
-        text-align:center;
-        padding-bottom: 6px;
-    }
-
-    .miniNote{
-        margin-top: 8px;
-        color: rgba(154,164,178,.9);
-        font-size: 12px;
-        text-align:center;
-    }
-
-    .hint{
-        margin-top: 10px;
-        padding: 10px 12px;
-        border-radius: 14px;
-        border: 1px dashed rgba(255,255,255,.18);
-        color: rgba(229,231,235,.9);
-        font-size: 12px;
-        background: rgba(255,255,255,.03);
-    }
-    .hint b{ color: var(--text); }
-
-    /* small screens */
-    @media (max-width: 380px){
-        h1{font-size:24px}
-        .badge{min-width: 140px}
-    }
-    </style>
+    <link rel="stylesheet" href="./style.css" />
 </head>
 
 <body>
@@ -273,7 +56,10 @@
             </ul>
 
             <div class="hint">
-                <b>Важно:</b> файл в формате <b>.kmz</b>. Он импортируется в Organic Maps / MAPS.ME одним нажатием.
+                <div class="icon">ℹ️</div>
+                <div>
+                    <b>Важно:</b> файл в формате <b>.kmz</b>. Он импортируется в Organic Maps / MAPS.ME одним нажатием.
+                </div>
             </div>
         </div>
 
@@ -333,7 +119,7 @@
                 css.setProperty('--card',  '#ffffff');
                 css.setProperty('--card2', '#ffffff');
                 css.setProperty('--text',  '#0f172a');
-                css.setProperty('--muted', '#475569');
+                css.setProperty('--muted', '#334155');
                 css.setProperty('--stroke','rgba(15, 23, 42, .08)');
                 css.setProperty('--btn',   '#eef2ff');
                 css.setProperty('--btnText','#0f172a');
