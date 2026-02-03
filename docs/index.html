@@ -323,21 +323,43 @@
             tg.ready();
             tg.expand();
 
-            // Try to adapt to Telegram theme (dark/light)
-            const p = tg.themeParams || {};
             const css = document.documentElement.style;
+            const scheme = (tg.colorScheme || 'dark').toLowerCase();
+            const p = tg.themeParams || {};
 
-            // Map telegram theme to our css vars (safe defaults if empty)
-            if (p.bg_color) css.setProperty('--bg', p.bg_color);
-            if (p.text_color) css.setProperty('--text', p.text_color);
-
-            // Telegram button color is often best for primary action
+            // 1) Полная палитра под dark/light — чтобы не было "черный текст на темном фоне"
+            if (scheme === 'light') {
+                css.setProperty('--bg',    '#f6f7fb');
+                css.setProperty('--card',  '#ffffff');
+                css.setProperty('--card2', '#ffffff');
+                css.setProperty('--text',  '#0f172a');
+                css.setProperty('--muted', '#475569');
+                css.setProperty('--stroke','rgba(15, 23, 42, .08)');
+                css.setProperty('--btn',   '#eef2ff');
+                css.setProperty('--btnText','#0f172a');
+                css.setProperty('--shadow','0 18px 40px rgba(15, 23, 42, .10)');
+            } else {
+              // dark (как было)
+                css.setProperty('--bg',    '#0b1220');
+                css.setProperty('--card',  '#0f1b33');
+                css.setProperty('--card2', '#0c172b');
+                css.setProperty('--text',  '#e5e7eb');
+                css.setProperty('--muted', '#9aa4b2');
+                css.setProperty('--stroke','rgba(255,255,255,.08)');
+                css.setProperty('--btn',   '#1f2a44');
+                css.setProperty('--btnText','#e5e7eb');
+                css.setProperty('--shadow','0 18px 40px rgba(0,0,0,.35)');
+            }
+        
+            // 2) Акцент берем из Telegram — чтобы кнопка выглядела "родной"
             if (p.button_color) css.setProperty('--accent', p.button_color);
             if (p.button_text_color) css.setProperty('--accentText', p.button_text_color);
-
-            // Header color (not always supported on all clients)
-            try { tg.setHeaderColor?.(p.bg_color || '#0b1220'); } catch(e){}
+        
+            // 3) Подгоним фон/хедер (не везде поддерживается, но пусть будет)
+            try { tg.setHeaderColor?.(scheme === 'light' ? '#f6f7fb' : '#0b1220'); } catch(e){}
+            try { tg.setBackgroundColor?.(scheme === 'light' ? '#f6f7fb' : '#0b1220'); } catch(e){}
         }
+
 
         function haptic(type='impact', style='light'){
             if (!isTg) return;
@@ -364,7 +386,7 @@
         }
 
         applyTelegramTheme();
-        
+
         document.getElementById('mini').onclick = () => { haptic('impact','light'); send("GET_MINI"); };
         document.getElementById('buy').onclick  = () => { haptic('impact','medium'); send("BUY_FULL"); };
         document.getElementById('how').onclick  = () => { haptic('impact','light'); send("HOW_TO"); };
