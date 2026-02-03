@@ -196,9 +196,12 @@ async function handleBuy(ctx, productId) {
 const bot = new Telegraf(BOT_TOKEN);
 
 bot.start(async (ctx) => {
+    const kb = webAppKeyboardIfAny();
     await ctx.reply(
-        "Я собрал готовые места на карте: еда, виды, прогулки и полезное — под Organic Maps / MAPS.ME.\n\nНажми кнопку «🗺 Открыть витрину» ниже — выберешь город и получишь файл в этот чат.",
-        webAppKeyboardIfAny()
+        "Я собрал готовые места на карте: еда, виды, прогулки и полезное — под [Organic Maps](https://organicmaps.app) / [MAPS.ME](https://maps.me).\n\nНажми кнопку «🗺 Открыть витрину» ниже — выберешь город и получишь файл в этот чат.",
+        kb
+            ? { parse_mode: "Markdown", disable_web_page_preview: true, ...kb }
+            : { parse_mode: "Markdown", disable_web_page_preview: true }
     );
 });
 
