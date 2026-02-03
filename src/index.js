@@ -23,6 +23,11 @@ for (const p of [MINI_KMZ_PATH, FULL_KMZ_PATH]) {
 
 const bot = new Telegraf(BOT_TOKEN);
 
+// Debug: log all updates to verify polling works
+bot.use(async (ctx, next) => {
+    console.log("UPDATE:", ctx.updateType);
+    await next();
+});
 function instructionText() {
     return [
         "📍 *Как импортировать точки в Organic Maps / MAPS.ME*",
@@ -175,6 +180,9 @@ bot.on("message", async (ctx) => {
         // но лучше вынести покупку в отдельную функцию
     }
 });
+
+// Ensure no webhook blocks long polling
+await bot.telegram.deleteWebhook();
 
 bot.launch();
 console.log("Bot is running...");

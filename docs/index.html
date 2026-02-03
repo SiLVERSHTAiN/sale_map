@@ -46,7 +46,14 @@
         tg.ready();
         tg.expand();
 
-        const send = (action) => tg.sendData(JSON.stringify({ action }));
+        const send = (action) => {
+            if (!tg?.sendData) {
+                alert("sendData недоступен");
+                return;
+            }
+            tg.sendData(JSON.stringify({ action }));
+            if (tg?.close) tg.close();
+        };
 
         document.getElementById('mini').onclick = () => send("GET_MINI");
         document.getElementById('buy').onclick = () => send("BUY_FULL");
