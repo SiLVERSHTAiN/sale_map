@@ -14,9 +14,9 @@ const ASSETS_DIR = process.env.ASSETS_DIR || "./assets";
 const CATALOG_PATH = process.env.CATALOG_PATH || "./docs/products.json";
 const DEFAULT_CITY_ID = process.env.DEFAULT_CITY_ID || "";
 
-// Если хочешь показывать кнопку WebApp прямо в сообщении — можешь указать URL.
-// Иначе просто открой витрину через Menu кнопку (ты уже настроил её в BotFather).
-const WEBAPP_URL = process.env.WEBAPP_URL || "";
+// URL витрины. Можно переопределить через .env (WEBAPP_URL)
+const WEBAPP_URL =
+    process.env.WEBAPP_URL || "https://silvershtain.github.io/sale_map/";
 
 // -------------------- Helpers --------------------
 function abs(p) {
@@ -100,7 +100,6 @@ function safeJsonParse(s) {
 }
 
 function webAppKeyboardIfAny() {
-    if (!WEBAPP_URL) return undefined;
     return Markup.keyboard([[Markup.button.webApp("🗺 Открыть витрину", WEBAPP_URL)]])
         .resize()
         .persistent();
@@ -198,7 +197,7 @@ const bot = new Telegraf(BOT_TOKEN);
 
 bot.start(async (ctx) => {
     await ctx.reply(
-        "Привет! Это бот с путеводителями (.kmz) для Organic Maps / MAPS.ME.\n\nОткрой витрину через кнопку Menu (или кнопку ниже, если она есть).",
+        "Я собрал готовые места на карте: еда, виды, прогулки и полезное — под Organic Maps / MAPS.ME.\n\nНажми кнопку «🗺 Открыть витрину» ниже — выберешь город и получишь файл в этот чат.",
         webAppKeyboardIfAny()
     );
 });

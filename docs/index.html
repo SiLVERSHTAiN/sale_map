@@ -13,7 +13,12 @@
         <div class="top">
             <div class="brand">
                 <h1>Sale Maps</h1>
-                <p>Готовые путеводители точками (.kmz) для Organic Maps / MAPS.ME</p>
+                <p>
+                    Я собрал готовые места на карте: еда, виды, прогулки и полезное — под
+                    <a href="https://organicmaps.app" target="_blank" rel="noopener">Organic Maps</a> /
+                    <a href="https://maps.me" target="_blank" rel="noopener">MAPS.ME</a>.
+                    Нажми кнопку «🗺 Открыть витрину» ниже — выберешь город и получишь файл в этот чат.
+                </p>
             </div>
             <div class="chip">🗺️ Каталог</div>
         </div>
@@ -109,7 +114,10 @@
         return `
             <div class="card">
                 <div class="cardHeader">
-                    <div class="pill">Organic Maps / MAPS.ME · .kmz</div>
+                    <div class="pill">
+                        <a href="https://organicmaps.app" target="_blank" rel="noopener">Organic Maps</a> /
+                        <a href="https://maps.me" target="_blank" rel="noopener">MAPS.ME</a> · .kmz
+                    </div>
                     ${city.country ? `<div class="pill">${esc(city.country)}</div>` : ''}
                 </div>
             

@@ -48,6 +48,12 @@ body{
   font-size: 13px;
 }
 
+.brand a,
+.pill a{
+  color: inherit;
+  text-decoration: underline;
+}
+
 .chip{
   display:inline-flex;
   align-items:center;
