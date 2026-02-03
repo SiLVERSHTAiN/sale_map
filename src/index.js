@@ -152,6 +152,7 @@ bot.catch((err) => console.error("BOT ERROR:", err));
 
 bot.on("message", async (ctx) => {
     const wa = ctx.message?.web_app_data;
+    console.log("WEB_APP_DATA:", wa?.data);
     if (!wa?.data) return;
 
     let data;

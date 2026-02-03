@@ -42,34 +42,15 @@
     </div>
 
     <script>
-        const tg = window.Telegram?.WebApp;
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
 
-        function show(msg) {
-            if (tg?.showAlert) tg.showAlert(msg);
-            else alert(msg);
-        }
+        const send = (action) => tg.sendData(JSON.stringify({ action }));
 
-        // Проверка: JS выполняется
-        show("JS загружен");
-
-        if (!tg) show("Не вижу Telegram WebApp API (открой из кнопки бота).");
-        else {
-            tg.ready();
-            tg.expand();
-        }
-
-        const send = (action) => {
-            try {
-                show("Нажато: " + action);
-                tg?.sendData?.(JSON.stringify({ action }));
-            } catch (e) {
-                show("Ошибка sendData: " + (e?.message || e));
-            }
-        };
-
-        document.getElementById("mini")?.addEventListener("click", () => send("GET_MINI"));
-        document.getElementById("buy")?.addEventListener("click", () => send("BUY_FULL"));
-        document.getElementById("how")?.addEventListener("click", () => send("HOW_TO"));
+        document.getElementById('mini').onclick = () => send("GET_MINI");
+        document.getElementById('buy').onclick = () => send("BUY_FULL");
+        document.getElementById('how').onclick = () => send("HOW_TO");
     </script>
 
 </body>
