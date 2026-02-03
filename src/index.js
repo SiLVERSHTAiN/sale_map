@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 import { Telegraf } from "telegraf";
 import { nanoid } from "nanoid";
-import { mainMenuKeyboard } from "./keyboards.js";
+import { mainMenuKeyboard, webAppReplyKeyboard } from "./keyboards.js";
 import { hasPurchase, storePurchase } from "./storage.js";
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
@@ -23,11 +23,6 @@ for (const p of [MINI_KMZ_PATH, FULL_KMZ_PATH]) {
 
 const bot = new Telegraf(BOT_TOKEN);
 
-// Debug: log all updates to verify polling works
-bot.use(async (ctx, next) => {
-    console.log("UPDATE:", ctx.updateType);
-    await next();
-});
 function instructionText() {
     return [
         "📍 *Как импортировать точки в Organic Maps / MAPS.ME*",
@@ -48,8 +43,8 @@ async function sendKmz(ctx, filePath, caption) {
 
 async function showMain(ctx) {
     await ctx.reply(
-        "Привет! Это бот с путеводителем по Батуми в формате точек (.kmz) для Organic Maps / MAPS.ME.\n\nВыбирай действие:",
-        mainMenuKeyboard()
+        "Привет! Это бот с путеводителем по Батуми в формате точек (.kmz) для Organic Maps / MAPS.ME.\n\nОткрой витрину через кнопку ниже:",
+        webAppReplyKeyboard()
     );
 }
 
@@ -95,7 +90,10 @@ bot.action("DOWNLOAD_AGAIN", async (ctx) => {
     if (!userId) return;
 
     if (!hasPurchase(userId, PRODUCT_ID)) {
-        await ctx.reply("Похоже, полной покупки ещё нет. Нажми «Купить полный путеводитель».", mainMenuKeyboard());
+        await ctx.reply(
+            "Похоже, полной покупки ещё нет. Открой витрину и нажми «Купить полный путеводитель».",
+            webAppReplyKeyboard()
+        );
         return;
     }
 
@@ -157,7 +155,6 @@ bot.catch((err) => console.error("BOT ERROR:", err));
 
 bot.on("message", async (ctx) => {
     const wa = ctx.message?.web_app_data;
-    console.log("WEB_APP_DATA:", wa?.data);
     if (!wa?.data) return;
 
     let data;
