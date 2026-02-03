@@ -1,0 +1,27 @@
+{
+    "cities": [
+        { "id": "batumi", "name": "Батуми", "country": "GE", "active": true }
+    ],
+    "products": [
+        {
+            "id": "batumi_mini",
+            "cityId": "batumi",
+            "type": "mini",
+            "title": "Mini-версия",
+            "subtitle": "Бесплатно ✅",
+            "priceStars": 0,
+            "file": "batumi-mini.kmz",
+            "active": true
+        },
+        {
+            "id": "batumi_full",
+            "cityId": "batumi",
+            "type": "full",
+            "title": "Полная версия",
+            "subtitle": "199 ⭐ Stars",
+            "priceStars": 199,
+            "file": "batumi-full.kmz",
+            "active": true
+        }
+    ]
+}

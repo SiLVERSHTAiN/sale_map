@@ -3,109 +3,34 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-    <title>Путеводитель по Батуми</title>
-
-    <!-- Telegram WebApp API -->
+    <title>Sale Maps · Витрина</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="./style.css" />
 </head>
 
 <body>
     <div class="wrap">
-        <div class="hero">
-            <div class="pill">Organic Maps / MAPS.ME · .kmz</div>
-            
-            <h1>Путеводитель по Батуми</h1>
-            <p class="lead">
-                Точки на карте: еда, виды, прогулки и полезные места.
-                Импортируется одним нажатием в Organic Maps / MAPS.ME.
-            </p>
-        
-            <div class="row">
-                <div class="badge">
-                <div class="t">Mini-версия</div>
-                <div class="v">Бесплатно ✅</div>
+        <div class="top">
+            <div class="brand">
+                <h1>Sale Maps</h1>
+                <p>Готовые путеводители точками (.kmz) для Organic Maps / MAPS.ME</p>
             </div>
-            <div class="badge">
-                <div class="t">Полная версия</div>
-                <div class="v">199 ⭐ Stars</div>
-            </div>
-            <div class="badge">
-                <div class="t">Обновления</div>
-                <div class="v">Включены ♻️</div>
-            </div>
-            </div>
-        
-            <div class="actions">
-                <button class="btn" id="mini">✅ Забрать mini-версию</button>
-                <button class="btn primary" id="buy">⭐ Купить полную версию (Stars)</button>
-                <button class="btn ghost" id="how">❓ Как установить</button>
-            </div>
-        
-            <div class="miniNote">
-                После нажатия мини-приложение закроется и бот пришлёт файл в чат.
-            </div>
+            <div class="chip">🗺️ Каталог</div>
         </div>
 
-        <div class="section">
-            <h2>Что внутри</h2>
-            <ul class="list">
-                <li><b>Сгруппированные точки</b>: еда / кофе / виды / полезное</li>
-                <li><b>Пояснения</b> — что выбрать и когда лучше ехать</li>
-                <li><b>Можно обновлять</b> — пришлю новую версию (без повторной покупки)</li>
-            </ul>
-
-            <div class="hint">
-                <div class="icon">ℹ️</div>
-                <div>
-                    <b>Важно:</b> файл в формате <b>.kmz</b>. Он импортируется в Organic Maps / MAPS.ME одним нажатием.
-                </div>
-            </div>
-        </div>
-
-        <div class="section">
-            <h2>FAQ</h2>
-            <div class="faq">
-                <details>
-                    <summary>Где я получу файл после нажатия кнопки?</summary>
-                    <p>Файл придёт сообщением от бота прямо в этот чат. Это удобно: скачал → открыл → импортировал.</p>
-                </details>
-
-                <details>
-                    <summary>Что если у меня нет Stars?</summary>
-                    <p>Stars — самый простой вариант внутри Telegram. Позже добавим оплату картой (VISA/MC) отдельной кнопкой.</p>
-                </details>
-
-                <details>
-                    <summary>Можно ли скачать повторно после покупки?</summary>
-                    <p>Да. В чате бота будет кнопка “Скачать ещё раз”, чтобы не искать файл в истории сообщений.</p>
-                </details>
-
-                <details>
-                    <summary>Будут ли новые города?</summary>
-                    <p>Да — план постепенно расширять географию. Покупка привязана к продукту (город/версия).</p>
-                </details>
-            </div>
-        
-            <div class="fine">
-                Поддержка: если что-то не импортируется — напиши боту, я помогу.
-            </div>
-        </div>
+        <div id="catalog" class="grid"></div>
 
         <div class="footer">
-            © Sale_maps · Batumi Guide · 2026
+            © Sale Maps · 2026
         </div>
     </div>
 
     <script>
         const tg = window.Telegram?.WebApp;
-        
-        // Fallback for opening in a normal browser
         const isTg = !!tg;
         
         function applyTelegramTheme(){
             if (!isTg) return;
-
             tg.ready();
             tg.expand();
 
@@ -113,7 +38,6 @@
             const scheme = (tg.colorScheme || 'dark').toLowerCase();
             const p = tg.themeParams || {};
 
-            // 1) Полная палитра под dark/light — чтобы не было "черный текст на темном фоне"
             if (scheme === 'light') {
                 css.setProperty('--bg',    '#f6f7fb');
                 css.setProperty('--card',  '#ffffff');
@@ -125,7 +49,6 @@
                 css.setProperty('--btnText','#0f172a');
                 css.setProperty('--shadow','0 18px 40px rgba(15, 23, 42, .10)');
             } else {
-              // dark (как было)
                 css.setProperty('--bg',    '#0b1220');
                 css.setProperty('--card',  '#0f1b33');
                 css.setProperty('--card2', '#0c172b');
@@ -136,16 +59,13 @@
                 css.setProperty('--btnText','#e5e7eb');
                 css.setProperty('--shadow','0 18px 40px rgba(0,0,0,.35)');
             }
-        
-            // 2) Акцент берем из Telegram — чтобы кнопка выглядела "родной"
+
             if (p.button_color) css.setProperty('--accent', p.button_color);
             if (p.button_text_color) css.setProperty('--accentText', p.button_text_color);
-        
-            // 3) Подгоним фон/хедер (не везде поддерживается, но пусть будет)
+
             try { tg.setHeaderColor?.(scheme === 'light' ? '#f6f7fb' : '#0b1220'); } catch(e){}
             try { tg.setBackgroundColor?.(scheme === 'light' ? '#f6f7fb' : '#0b1220'); } catch(e){}
         }
-
 
         function haptic(type='impact', style='light'){
             if (!isTg) return;
@@ -157,25 +77,142 @@
             }catch(e){}
         }
 
-        function send(action){
-            const payload = JSON.stringify({ action });
+        function send(action, productId){
+            const payload = JSON.stringify({ action, productId });
             if (!isTg){
-                alert('Открой это mini-приложение внутри Telegram, чтобы отправить действие боту.\n\nAction: ' + action);
+                alert('Открой mini-приложение внутри Telegram.\n\n' + payload);
                 return;
             }
             tg.sendData(payload);
 
-            // Чтобы пользователь сразу увидел сообщение от бота — закрываем mini app
-            setTimeout(() => {
-                try { tg.close(); } catch(e){}
-            }, 80);
+            // закрываем быстро, чтобы пользователь сразу увидел сообщение бота в чате
+            setTimeout(() => { try { tg.close(); } catch(e){} }, 80);
         }
 
-        applyTelegramTheme();
+        async function loadProducts(){
+            // pages cache может мешать — no-store помогает в dev
+            const res = await fetch('./products.json', { cache: 'no-store' });
+            if (!res.ok) throw new Error('Не удалось загрузить products.json (HTTP ' + res.status + ')');
+            return res.json();
+        }
 
-        document.getElementById('mini').onclick = () => { haptic('impact','light'); send("GET_MINI"); };
-        document.getElementById('buy').onclick  = () => { haptic('impact','medium'); send("BUY_FULL"); };
-        document.getElementById('how').onclick  = () => { haptic('impact','light'); send("HOW_TO"); };
+        function escapeHtml(s){
+            return String(s ?? '')
+                .replaceAll('&','&amp;')
+                .replaceAll('<','&lt;')
+                .replaceAll('>','&gt;')
+                .replaceAll('"','&quot;')
+                .replaceAll("'","&#039;");
+        }
+
+        function starsLabel(priceStars){
+            if (!priceStars || Number(priceStars) <= 0) return 'Бесплатно ✅';
+            return `${priceStars} ⭐ Stars`;
+        }
+
+        function renderCityCard(city, products){
+            const cityProducts = products.filter(p => p.cityId === city.id && p.active !== false);
+            
+            const mini = cityProducts.find(p => p.type === 'mini');
+            const full = cityProducts.find(p => p.type === 'full');
+            
+            const miniPrice = mini ? starsLabel(mini.priceStars) : '';
+            const fullPrice = full ? starsLabel(full.priceStars) : '';
+            
+            const subtitle = `Organic Maps / MAPS.ME · .kmz`;
+            const cityName = escapeHtml(city.name);
+            const country = escapeHtml(city.country || '');
+            
+            return `
+                <div class="card">
+                    <div class="cardHeader">
+                        <div class="pill">${escapeHtml(subtitle)}</div>
+                        <div class="pill">${country ? `${country}` : ' '}</div>
+                    </div>
+
+                    <div class="title">${cityName}</div>
+                    <p class="lead">Готовый набор точек: еда, виды, прогулки, полезное.</p>
+
+                    <div class="row">
+                        ${mini ? `
+                            <div class="badge">
+                                <div class="t">${escapeHtml(mini.title || 'Mini')}</div>
+                                <div class="v">${escapeHtml(mini.subtitle || miniPrice)}</div>
+                            </div>` : ''
+                        }
+                        ${full ? `
+                            <div class="badge">
+                                <div class="t">${escapeHtml(full.title || 'Full')}</div>
+                                <div class="v">${escapeHtml(full.subtitle || fullPrice)}</div>
+                            </div>` : ''
+                        }
+                        <div class="badge">
+                            <div class="t">Обновления</div>
+                            <div class="v">Включены ♻️</div>
+                        </div>
+                    </div>
+
+                    <div class="actions">
+                        ${mini ? `
+                            <button class="btn" data-action="GET_FILE" data-product="${escapeHtml(mini.id)}">
+                                ✅ Забрать (${escapeHtml(mini.subtitle || miniPrice)})
+                            </button>` : ''
+                        }
+                        
+                        ${full ? `
+                            <button class="btn primary" data-action="BUY" data-product="${escapeHtml(full.id)}">
+                                ⭐ Купить (${escapeHtml(full.subtitle || fullPrice)})
+                            </button>` : ''
+                        }
+                        
+                        <button class="btn ghost" data-action="HOW_TO">
+                            ❓ Как установить
+                        </button>
+                    </div>
+
+                    <div class="hint">
+                        <div class="icon">ℹ️</div>
+                        <div><b>Важно:</b> файл <b>.kmz</b> придёт сообщением от бота в этот чат.</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function bindButtons(root){
+            root.querySelectorAll('button[data-action]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const action = btn.getAttribute('data-action');
+                    const productId = btn.getAttribute('data-product') || undefined;
+                    haptic('impact', action === 'BUY' ? 'medium' : 'light');
+                    send(action, productId);
+                });
+            });
+        }
+
+        async function init(){
+            applyTelegramTheme();
+            
+            const catalogEl = document.getElementById('catalog');
+            
+            try{
+                const data = await loadProducts();
+                
+                const cities = (data.cities || []).filter(c => c && c.active !== false);
+                const products = (data.products || []).filter(p => p && p.active !== false);
+                
+                if (!cities.length){
+                    catalogEl.innerHTML = `<div class="error">Нет активных городов в products.json</div>`;
+                    return;
+                }
+
+                catalogEl.innerHTML = cities.map(c => renderCityCard(c, products)).join('');
+                bindButtons(catalogEl);
+            }catch(e){
+                catalogEl.innerHTML = `<div class="error">Ошибка загрузки каталога:\n${escapeHtml(e.message || e)}</div>`;
+            }
+        }
+
+        init();
     </script>
 </body>
 </html>
