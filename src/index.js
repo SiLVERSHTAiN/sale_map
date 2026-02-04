@@ -4,7 +4,7 @@ import path from "path";
 import { Telegraf, Markup } from "telegraf";
 import { nanoid } from "nanoid";
 
-import { hasPurchase, storePurchase } from "./storage.js";
+import { hasPurchaseAsync, storePurchaseAsync } from "./storage.js";
 
 // -------------------- ENV --------------------
 const BOT_TOKEN = process.env.BOT_TOKEN;
@@ -86,6 +86,17 @@ function resolveAssetFile(fileName) {
     return p;
 }
 
+function isRemoteFile(fileName) {
+    return /^https?:\/\//i.test(String(fileName || ""));
+}
+
+function fileSource(fileName) {
+    if (isRemoteFile(fileName)) {
+        return { url: String(fileName) };
+    }
+    return { source: fs.createReadStream(resolveAssetFile(fileName)) };
+}
+
 function cityLabel(city) {
     if (!city) return "";
     return city.country ? `${city.name} · ${city.country}` : city.name;
@@ -107,7 +118,7 @@ function webAppKeyboardIfAny() {
 
 async function sendKmz(ctx, filePath, caption) {
     await ctx.replyWithDocument(
-        { source: fs.createReadStream(filePath) },
+        fileSource(filePath),
         { caption, parse_mode: "Markdown" }
     );
 }
@@ -131,7 +142,7 @@ async function handleGetFile(ctx, productId) {
         const userId = ctx.from?.id;
         if (!userId) return;
 
-        if (!hasPurchase(userId, product.id)) {
+        if (!(await hasPurchaseAsync(userId, product.id))) {
             await ctx.reply("Полная версия доступна после оплаты ⭐", webAppKeyboardIfAny());
             return;
         }
@@ -140,8 +151,7 @@ async function handleGetFile(ctx, productId) {
     const city = citiesById[product.cityId];
     const caption = `✅ *${product.title || "Файл"}*\n${cityLabel(city)}`.trim();
 
-    const filePath = resolveAssetFile(product.file);
-    await sendKmz(ctx, filePath, caption);
+    await sendKmz(ctx, product.file, caption);
     await handleHowTo(ctx);
 }
 
@@ -163,7 +173,7 @@ async function handleBuy(ctx, productId) {
     }
 
   // уже куплено — выдаём без оплаты
-    if (hasPurchase(userId, product.id)) {
+    if (await hasPurchaseAsync(userId, product.id)) {
         await ctx.reply("✅ Уже куплено. Отправляю файл ещё раз:");
         return handleGetFile(ctx, product.id);
     }
@@ -198,7 +208,7 @@ const bot = new Telegraf(BOT_TOKEN);
 bot.start(async (ctx) => {
     const kb = webAppKeyboardIfAny();
     await ctx.reply(
-        "Я собрал готовые места на карте: еда, виды, прогулки и полезное — под [Organic Maps](https://organicmaps.app) / [MAPS.ME](https://maps.me).\n\nНажми кнопку «🗺 Открыть витрину» ниже — выберешь город и получишь файл в этот чат.",
+        "Я собрал готовые места на карте: еда, виды, прогулки и много полезного.\n\nНажми кнопку «🗺 Открыть витрину» ниже 🔻 — выбирай город и получишь файл в этот чат.",
         kb
             ? { parse_mode: "Markdown", disable_web_page_preview: true, ...kb }
             : { parse_mode: "Markdown", disable_web_page_preview: true }
@@ -249,7 +259,7 @@ bot.on("successful_payment", async (ctx) => {
         return;
     }
 
-    storePurchase({
+    await storePurchaseAsync({
         userId,
         productId,
         telegramPaymentChargeId: sp.telegram_payment_charge_id,
