@@ -1,7 +1,5 @@
-cat > .gitignore <<'EOF'
 node_modules
 data
 .env
 .DS_Store
-EOF
 assets/*.kmz
