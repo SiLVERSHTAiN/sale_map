@@ -15,8 +15,8 @@
                 <h1>Sale Maps</h1>
                 <p>
                     Я собрал готовые места на карте: еда, виды, прогулки и полезное — под
-                    <a href="https://organicmaps.app" target="_blank" rel="noopener">Organic Maps</a> /
-                    <a href="https://maps.me" target="_blank" rel="noopener">MAPS.ME</a>.
+                    <a data-app="organic" href="https://organicmaps.app" target="_blank" rel="noopener">Organic Maps</a> /
+                    <a data-app="mapsme" href="https://maps.me" target="_blank" rel="noopener">MAPS.ME</a>.
                 </p>
             </div>
             <div class="chip">🗺️ Каталог</div>
@@ -61,6 +61,43 @@
     
         try { tg.setHeaderColor?.(scheme === 'light' ? '#f6f7fb' : '#0b1220'); } catch(e){}
         try { tg.setBackgroundColor?.(scheme === 'light' ? '#f6f7fb' : '#0b1220'); } catch(e){}
+    }
+
+    const LINKS = {
+        organic: {
+            appstore: 'https://apps.apple.com/ge/app/organic-maps-offline-map-gps/id1567437057',
+            play: 'https://play.google.com/store/apps/details?id=app.organicmaps',
+            web: 'https://organicmaps.app'
+        },
+        mapsme: {
+            appstore: 'https://apps.apple.com/ge/app/maps-me-offline-maps-gps-nav/id510623322',
+            play: 'https://play.google.com/store/apps/details?id=com.mapswithme.maps.pro',
+            web: 'https://maps.me'
+        }
+    };
+
+    function detectPlatform(){
+        if (isTg && tg.platform) return String(tg.platform).toLowerCase();
+        const ua = navigator.userAgent.toLowerCase();
+        if (ua.includes('iphone') || ua.includes('ipad') || ua.includes('ipod')) return 'ios';
+        if (ua.includes('android')) return 'android';
+        return 'desktop';
+    }
+
+    function linkFor(app){
+        const platform = detectPlatform();
+        const l = LINKS[app] || {};
+        if (platform === 'ios') return l.appstore || l.web || '#';
+        if (platform === 'android') return l.play || l.web || '#';
+        if (platform === 'desktop' || platform === 'tdesktop') return l.web || '#';
+        return l.web || '#';
+    }
+
+    function setStoreLinks(root){
+        root.querySelectorAll('a[data-app]').forEach(a => {
+            const app = a.getAttribute('data-app');
+            a.href = linkFor(app);
+        });
     }
 
     function haptic(type='impact', style='light'){
@@ -114,8 +151,8 @@
             <div class="card">
                 <div class="cardHeader">
                     <div class="pill">
-                        <a href="https://organicmaps.app" target="_blank" rel="noopener">Organic Maps</a> /
-                        <a href="https://maps.me" target="_blank" rel="noopener">MAPS.ME</a> · .kmz
+                        <a data-app="organic" href="${linkFor('organic')}" target="_blank" rel="noopener">Organic Maps</a> /
+                        <a data-app="mapsme" href="${linkFor('mapsme')}" target="_blank" rel="noopener">MAPS.ME</a>
                     </div>
                     ${city.country ? `<div class="pill">${esc(city.country)}</div>` : ''}
                 </div>
@@ -184,6 +221,7 @@
 
     async function init(){
         applyTelegramTheme();
+        setStoreLinks(document);
         const el = document.getElementById('catalog');
         try{
             const data = await loadCatalog();
