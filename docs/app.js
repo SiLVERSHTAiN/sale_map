@@ -291,6 +291,26 @@ function setupActiveCardTracking(root){
     window.addEventListener('resize', pickByCenter);
 }
 
+function setupFloatingAction(){
+    const fab = document.getElementById('fab-action');
+    if (!fab) return;
+    const threshold = 140;
+    let ticking = false;
+
+    const update = () => {
+        const show = window.scrollY > threshold;
+        fab.classList.toggle('is-visible', show);
+        ticking = false;
+    };
+
+    update();
+    window.addEventListener('scroll', () => {
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(update);
+    }, { passive: true });
+}
+
 function bindButtons(root){
     root.querySelectorAll('button[data-action]').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -322,6 +342,7 @@ function scrollToHash(){
 async function init(){
     applyTelegramTheme();
     setStoreLinks(document);
+    setupFloatingAction();
     const el = document.getElementById('catalog');
     const page = document.body?.dataset?.page || 'home';
     if (el) showSkeleton(el, page);

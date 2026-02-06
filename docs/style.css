@@ -81,6 +81,32 @@ a.chip:hover{
   color: var(--text);
 }
 
+.fab{
+  position: fixed;
+  right: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  z-index: 20;
+  padding: 10px 14px;
+  height: auto;
+  font-size: 13px;
+  box-shadow: 0 10px 24px rgba(0,0,0,.25);
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition: opacity .2s ease, transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+
+.fab.is-visible{
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.fab:hover{
+  border-color: rgba(56,189,248,.35);
+  box-shadow: 0 14px 30px rgba(56,189,248,.18);
+}
+
 .grid{
   display:grid;
   grid-template-columns: 1fr;
