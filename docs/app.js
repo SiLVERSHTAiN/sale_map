@@ -1,0 +1,211 @@
+const tg = window.Telegram?.WebApp;
+const isTg = !!tg;
+
+function applyTelegramTheme(){
+    if (!isTg) return;
+    tg.ready();
+    tg.expand();
+    
+    const css = document.documentElement.style;
+    const scheme = (tg.colorScheme || 'dark').toLowerCase();
+    const p = tg.themeParams || {};
+    
+    if (scheme === 'light') {
+        css.setProperty('--bg',    '#f6f7fb');
+        css.setProperty('--card',  '#ffffff');
+        css.setProperty('--card2', '#ffffff');
+        css.setProperty('--text',  '#0f172a');
+        css.setProperty('--muted', '#334155');
+        css.setProperty('--stroke','rgba(15, 23, 42, .08)');
+        css.setProperty('--btn',   '#eef2ff');
+        css.setProperty('--btnText','#0f172a');
+        css.setProperty('--shadow','0 18px 40px rgba(15, 23, 42, .10)');
+    } else {
+      // dark — базовые значения уже в css, можно не трогать
+    }
+
+    if (p.button_color) css.setProperty('--accent', p.button_color);
+    if (p.button_text_color) css.setProperty('--accentText', p.button_text_color);
+
+    try { tg.setHeaderColor?.(scheme === 'light' ? '#f6f7fb' : '#0b1220'); } catch(e){}
+    try { tg.setBackgroundColor?.(scheme === 'light' ? '#f6f7fb' : '#0b1220'); } catch(e){}
+}
+
+const LINKS = {
+    organic: {
+        appstore: 'https://apps.apple.com/ge/app/organic-maps-offline-map-gps/id1567437057',
+        play: 'https://play.google.com/store/apps/details?id=app.organicmaps',
+        web: 'https://organicmaps.app'
+    },
+    mapsme: {
+        appstore: 'https://apps.apple.com/ge/app/maps-me-offline-maps-gps-nav/id510623322',
+        play: 'https://play.google.com/store/apps/details?id=com.mapswithme.maps.pro',
+        web: 'https://maps.me'
+    }
+};
+
+function detectPlatform(){
+    if (isTg && tg.platform) return String(tg.platform).toLowerCase();
+    const ua = navigator.userAgent.toLowerCase();
+    if (ua.includes('iphone') || ua.includes('ipad') || ua.includes('ipod')) return 'ios';
+    if (ua.includes('android')) return 'android';
+    return 'desktop';
+}
+
+function linkFor(app){
+    const platform = detectPlatform();
+    const l = LINKS[app] || {};
+    if (platform === 'ios') return l.appstore || l.web || '#';
+    if (platform === 'android') return l.play || l.web || '#';
+    if (platform === 'desktop' || platform === 'tdesktop') return l.web || '#';
+    return l.web || '#';
+}
+
+function setStoreLinks(root){
+    root.querySelectorAll('a[data-app]').forEach(a => {
+        const app = a.getAttribute('data-app');
+        a.href = linkFor(app);
+    });
+}
+
+function haptic(type='impact', style='light'){
+    if (!isTg) return;
+    try{
+        const hf = tg.HapticFeedback;
+        if (!hf) return;
+        if (type === 'impact') hf.impactOccurred(style);
+        if (type === 'notification') hf.notificationOccurred(style);
+    }catch(e){}
+}
+
+// ВАЖНО: теперь send принимает (action, productId)
+function send(action, productId){
+    const payload = JSON.stringify({ action, productId });
+    if (!isTg){
+        alert('Открой mini-приложение внутри Telegram.\n\n' + payload);
+        return;
+    }
+    tg.sendData(payload);
+    setTimeout(() => { try { tg.close(); } catch(e){} }, 80);
+}
+
+async function loadCatalog(){
+    const res = await fetch('./products.json', { cache: 'no-store' });
+    if (!res.ok) throw new Error('products.json не загрузился (HTTP ' + res.status + ')');
+    return res.json();
+}
+
+function esc(s){
+    return String(s ?? '')
+        .replaceAll('&','&amp;')
+        .replaceAll('<','&lt;')
+        .replaceAll('>','&gt;')
+        .replaceAll('"','&quot;')
+        .replaceAll("'","&#039;");
+}
+
+function starsLabel(priceStars){
+    const n = Number(priceStars || 0);
+    return n <= 0 ? 'Бесплатно ✅' : `${n} ⭐ Stars`;
+}
+
+// Рисуем карточку города из твоих CSS-классов (.card, .pill, .badge, .btn...)
+function renderCityCard(city, products){
+    const cityProducts = products.filter(p => p.cityId === city.id && p.active !== false);
+    const mini = cityProducts.find(p => p.type === 'mini');
+    const full = cityProducts.find(p => p.type === 'full');
+    
+    return `
+        <div class="card">
+            <div class="cardHeader">
+                <div class="pill">
+                    <a data-app="organic" href="${linkFor('organic')}" target="_blank" rel="noopener">Organic Maps</a> /
+                    <a data-app="mapsme" href="${linkFor('mapsme')}" target="_blank" rel="noopener">MAPS.ME</a>
+                </div>
+                ${city.country ? `<div class="pill">${esc(city.country)}</div>` : ''}
+            </div>
+        
+            <div class="title">${esc(city.name)}</div>
+            <p class="lead">Готовый набор точек: еда, виды, прогулки, полезное.</p>
+        
+            <div class="row">
+                ${mini ? `
+                    <div class="badge">
+                        <div class="t">${esc(mini.title || 'Mini')}</div>
+                        <div class="v">${esc(mini.subtitle || starsLabel(mini.priceStars))}</div>
+                    </div>` : ''
+                }
+                
+                ${full ? `
+                    <div class="badge">
+                        <div class="t">${esc(full.title || 'Full')}</div>
+                        <div class="v">${esc(full.subtitle || starsLabel(full.priceStars))}</div>
+                    </div>` : ''
+                }
+                
+                <div class="badge">
+                    <div class="t">Обновления</div>
+                    <div class="v">Включены ♻️</div>
+                </div>
+            </div>
+        
+            <div class="actions">
+                ${mini ? `
+                    <button class="btn" data-action="GET_FILE" data-product="${esc(mini.id)}">
+                        ✅ Забрать (${esc(mini.subtitle || starsLabel(mini.priceStars))})
+                    </button>` : ''
+                }
+                
+                ${full ? `
+                    <button class="btn primary" data-action="BUY" data-product="${esc(full.id)}">
+                        ⭐ Купить (${esc(full.subtitle || starsLabel(full.priceStars))})
+                    </button>` : ''
+                }
+                
+                <button class="btn ghost" data-action="HOW_TO">
+                    ❓ Как установить
+                </button>
+            </div>
+        
+            <div class="hint">
+                <div class="icon">ℹ️</div>
+                <div><b>Важно:</b> файл <b>.kmz</b> придёт сообщением от бота в этот чат.</div>
+            </div>
+        </div>
+    `;
+}
+
+function bindButtons(root){
+    root.querySelectorAll('button[data-action]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const action = btn.getAttribute('data-action');
+            const productId = btn.getAttribute('data-product') || undefined;
+            
+            haptic('impact', action === 'BUY' ? 'medium' : 'light');
+            send(action, productId);
+        });
+    });
+}
+
+async function init(){
+    applyTelegramTheme();
+    setStoreLinks(document);
+    const el = document.getElementById('catalog');
+    try{
+        const data = await loadCatalog();
+        const cities = (data.cities || []).filter(c => c && c.active !== false);
+        const products = (data.products || []).filter(p => p && p.active !== false);
+        
+        if (!cities.length){
+            el.innerHTML = `<div class="error">Нет активных городов в products.json</div>`;
+            return;
+        }
+    
+        el.innerHTML = cities.map(c => renderCityCard(c, products)).join('');
+        bindButtons(el);
+    }catch(e){
+        el.innerHTML = `<div class="error">Ошибка:\n${esc(e.message || e)}</div>`;
+    }
+}
+
+init();

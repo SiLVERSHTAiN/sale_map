@@ -68,6 +68,17 @@ body{
   height: 30px;
 }
 
+a.chip,
+a.chip:visited{
+  color: var(--muted);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+a.chip:hover{
+  color: var(--text);
+}
+
 .grid{
   display:grid;
   grid-template-columns: 1fr;
