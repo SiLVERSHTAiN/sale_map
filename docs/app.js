@@ -104,6 +104,13 @@ function esc(s){
         .replaceAll("'","&#039;");
 }
 
+function safeId(value){
+    return String(value ?? '')
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'city';
+}
+
 function starsLabel(priceStars){
     const n = Number(priceStars || 0);
     return n <= 0 ? 'Бесплатно ✅' : `${n} ⭐ Stars`;
@@ -114,9 +121,10 @@ function renderCityCard(city, products){
     const cityProducts = products.filter(p => p.cityId === city.id && p.active !== false);
     const mini = cityProducts.find(p => p.type === 'mini');
     const full = cityProducts.find(p => p.type === 'full');
+    const cid = safeId(city.id);
     
     return `
-        <div class="card">
+        <div class="card" id="city-${cid}" data-city="${esc(city.id)}">
             <div class="cardHeader">
                 <div class="pill">
                     <a data-app="organic" href="${linkFor('organic')}" target="_blank" rel="noopener">Organic Maps</a> /
@@ -175,6 +183,18 @@ function renderCityCard(city, products){
     `;
 }
 
+function renderCityLink(city){
+    const id = safeId(city.id);
+    const name = esc(city.name);
+    const country = city.country ? esc(city.country) : '';
+    return `
+        <a class="cityItem" href="./index.html#city-${id}">
+            <div class="cityName">${name}</div>
+            ${country ? `<div class="cityMeta">${country}</div>` : ''}
+        </a>
+    `;
+}
+
 function bindButtons(root){
     root.querySelectorAll('button[data-action]').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -187,10 +207,23 @@ function bindButtons(root){
     });
 }
 
+function scrollToHash(){
+    const raw = window.location.hash || '';
+    if (!raw) return;
+    const id = decodeURIComponent(raw.replace('#',''));
+    if (!id) return;
+    const el = document.getElementById(id);
+    if (!el) return;
+    requestAnimationFrame(() => {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+}
+
 async function init(){
     applyTelegramTheme();
     setStoreLinks(document);
     const el = document.getElementById('catalog');
+    const page = document.body?.dataset?.page || 'home';
     try{
         const data = await loadCatalog();
         const cities = (data.cities || []).filter(c => c && c.active !== false);
@@ -200,9 +233,16 @@ async function init(){
             el.innerHTML = `<div class="error">Нет активных городов в products.json</div>`;
             return;
         }
-    
+
+        if (page === 'catalog') {
+            el.classList.add('cityGrid');
+            el.innerHTML = cities.map(c => renderCityLink(c)).join('');
+            return;
+        }
+
         el.innerHTML = cities.map(c => renderCityCard(c, products)).join('');
         bindButtons(el);
+        scrollToHash();
     }catch(e){
         el.innerHTML = `<div class="error">Ошибка:\n${esc(e.message || e)}</div>`;
     }
