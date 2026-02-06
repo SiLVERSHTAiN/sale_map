@@ -63,6 +63,15 @@ export function hasPurchase(userId, productId) {
     return false;
 }
 
+export function listPurchases(userId) {
+    if (!DATABASE_URL) {
+        const db = readDb();
+        const u = db.users?.[String(userId)];
+        return Object.keys(u?.purchases || {});
+    }
+    return [];
+}
+
 export function storePurchase({ userId, productId, telegramPaymentChargeId, payload }) {
     if (!DATABASE_URL) {
         const db = readDb();
@@ -90,6 +99,17 @@ export async function hasPurchaseAsync(userId, productId) {
         [Number(userId), String(productId)]
     );
     return res.rowCount > 0;
+}
+
+export async function listPurchasesAsync(userId) {
+    const p = getPool();
+    if (!p) return listPurchases(userId);
+    await ensurePgSchema();
+    const res = await p.query(
+        "SELECT product_id FROM purchases WHERE user_id = $1",
+        [Number(userId)]
+    );
+    return res.rows.map((row) => row.product_id);
 }
 
 export async function storePurchaseAsync({ userId, productId, telegramPaymentChargeId, payload }) {

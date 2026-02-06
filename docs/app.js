@@ -1,5 +1,7 @@
 const tg = window.Telegram?.WebApp;
 const isTg = !!tg;
+const APP_CONFIG = window.APP_CONFIG || {};
+const API_BASE = String(APP_CONFIG.API_BASE || "").replace(/\/$/, "");
 
 function applyTelegramTheme(){
     if (!isTg) return;
@@ -31,6 +33,27 @@ function applyTelegramTheme(){
 
     try { tg.setHeaderColor?.(scheme === 'light' ? '#f6f7fb' : '#0b1220'); } catch(e){}
     try { tg.setBackgroundColor?.(scheme === 'light' ? '#f6f7fb' : '#0b1220'); } catch(e){}
+}
+
+async function loadEntitlements(){
+    if (!API_BASE || !isTg) return null;
+    const initData = tg?.initData;
+    if (!initData) return null;
+
+    try{
+        const res = await fetch(`${API_BASE}/api/entitlements`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ initData })
+        });
+        if (!res.ok) return null;
+        const data = await res.json();
+        if (!data?.ok) return null;
+        return data;
+    }catch(e){
+        console.warn('entitlements failed', e);
+        return null;
+    }
 }
 
 const LINKS = {
@@ -119,11 +142,17 @@ function starsLabel(priceStars){
 }
 
 // Рисуем карточку города из твоих CSS-классов (.card, .pill, .badge, .btn...)
-function renderCityCard(city, products){
+function renderCityCard(city, products, purchasedSet){
     const cityProducts = products.filter(p => p.cityId === city.id && p.active !== false);
     const mini = cityProducts.find(p => p.type === 'mini');
     const full = cityProducts.find(p => p.type === 'full');
     const cid = safeId(city.id);
+    const purchasedProducts = purchasedSet
+        ? cityProducts.filter(p => purchasedSet.has(p.id))
+        : [];
+    const purchasedProduct = purchasedProducts
+        .sort((a, b) => Number(b.priceStars || 0) - Number(a.priceStars || 0))[0];
+    const hasPurchase = Boolean(purchasedProduct);
     
     return `
         <div class="card" id="city-${cid}" data-city="${esc(city.id)}">
@@ -160,21 +189,26 @@ function renderCityCard(city, products){
             </div>
         
             <div class="actions">
-                ${mini ? `
-                    <button class="btn" data-action="GET_FILE" data-product="${esc(mini.id)}">
-                        ✅ Забрать (${esc(mini.subtitle || starsLabel(mini.priceStars))})
-                    </button>` : ''
-                }
-                
-                ${full ? `
-                    <button class="btn primary" data-action="BUY" data-product="${esc(full.id)}">
-                        ⭐ Купить (${esc(full.subtitle || starsLabel(full.priceStars))})
-                    </button>` : ''
-                }
-                
-                <button class="btn ghost" data-action="HOW_TO">
-                    ❓ Как установить
-                </button>
+                ${hasPurchase ? `
+                    <button class="btn primary" data-action="GET_FILE" data-product="${esc(purchasedProduct.id)}">
+                        ⬇️ Скачать снова
+                    </button>` : `
+                    ${mini ? `
+                        <button class="btn" data-action="GET_FILE" data-product="${esc(mini.id)}">
+                            ✅ Забрать (${esc(mini.subtitle || starsLabel(mini.priceStars))})
+                        </button>` : ''
+                    }
+                    
+                    ${full ? `
+                        <button class="btn primary" data-action="BUY" data-product="${esc(full.id)}">
+                            ⭐ Купить (${esc(full.subtitle || starsLabel(full.priceStars))})
+                        </button>` : ''
+                    }
+                    
+                    <button class="btn ghost" data-action="HOW_TO">
+                        ❓ Как установить
+                    </button>
+                `}
             </div>
         
             <div class="hint">
@@ -347,9 +381,15 @@ async function init(){
     const page = document.body?.dataset?.page || 'home';
     if (el) showSkeleton(el, page);
     try{
-        const data = await loadCatalog();
+        const [data, entitlements] = await Promise.all([
+            loadCatalog(),
+            loadEntitlements()
+        ]);
         const cities = (data.cities || []).filter(c => c && c.active !== false);
         const products = (data.products || []).filter(p => p && p.active !== false);
+        const purchasedSet = entitlements?.purchases
+            ? new Set(entitlements.purchases.map(String))
+            : null;
         
         if (!cities.length){
             hideSkeleton(el);
@@ -365,7 +405,7 @@ async function init(){
         }
 
         hideSkeleton(el);
-        el.innerHTML = cities.map(c => renderCityCard(c, products)).join('');
+        el.innerHTML = cities.map(c => renderCityCard(c, products, purchasedSet)).join('');
         bindButtons(el);
         setupActiveCardTracking(el);
         scrollToHash();

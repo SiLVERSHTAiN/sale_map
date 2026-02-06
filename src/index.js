@@ -5,6 +5,7 @@ import { Telegraf, Markup } from "telegraf";
 import { nanoid } from "nanoid";
 
 import { hasPurchaseAsync, storePurchaseAsync } from "./storage.js";
+import { startApiServer } from "./api.js";
 
 // -------------------- ENV --------------------
 const BOT_TOKEN = process.env.BOT_TOKEN;
@@ -17,6 +18,7 @@ const DEFAULT_CITY_ID = process.env.DEFAULT_CITY_ID || "";
 // URL витрины. Можно переопределить через .env (WEBAPP_URL)
 const WEBAPP_URL =
     process.env.WEBAPP_URL || "https://silvershtain.github.io/sale_map/";
+const PORT = Number(process.env.PORT || 3000);
 
 // -------------------- Helpers --------------------
 function abs(p) {
@@ -313,5 +315,6 @@ await bot.telegram.deleteWebhook();
 
 bot.launch();
 console.log("Bot is running...");
+startApiServer({ port: PORT, botToken: BOT_TOKEN });
 process.once("SIGINT", () => bot.stop("SIGINT"));
 process.once("SIGTERM", () => bot.stop("SIGTERM"));
