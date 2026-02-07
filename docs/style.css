@@ -350,27 +350,119 @@ a.chip:hover{
   text-decoration: underline;
 }
 
+.doc-grid{
+  display: grid;
+  gap: 12px;
+}
+
+@media (min-width: 720px){
+  .doc-grid{
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .doc-span{
+    grid-column: 1 / -1;
+  }
+}
+
+.card.doc{
+  background: linear-gradient(180deg, rgba(19,30,58,.96) 0%, rgba(12,20,40,.96) 100%);
+}
+
+.doc-head{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.doc-icon{
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: rgba(56,189,248,.16);
+  border: 1px solid rgba(56,189,248,.28);
+  color: #dbeafe;
+  font-size: 14px;
+}
+
 .card.doc h2{
-  margin: 0 0 8px;
+  margin: 0;
   font-size: 16px;
   letter-spacing: -.2px;
 }
 
-.card.doc p{
-  margin: 0 0 8px;
+.doc-sub{
+  margin: 2px 0 0;
   color: var(--muted);
+  font-size: 12px;
+}
+
+.doc-lines{
+  display: grid;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.doc-line{
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.06);
   font-size: 13px;
+}
+
+.doc-line .label{
+  color: var(--muted);
+}
+
+.doc-line .value{
+  color: var(--text);
+  font-weight: 600;
+  text-align: right;
+}
+
+@media (max-width: 520px){
+  .doc-line{
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .doc-line .value{
+    text-align: left;
+  }
 }
 
 .doc-list{
   margin: 0;
-  padding-left: 18px;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
   color: var(--muted);
   font-size: 13px;
 }
 
 .doc-list li{
-  margin: 6px 0;
+  padding: 8px 10px 8px 28px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.06);
+  position: relative;
+}
+
+.doc-list li::before{
+  content: '';
+  position: absolute;
+  left: 10px;
+  top: 14px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(56,189,248,.7);
 }
 
 .doc-note{
