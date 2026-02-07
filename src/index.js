@@ -273,6 +273,16 @@ bot.on("successful_payment", async (ctx) => {
     await handleGetFile(ctx, productId);
 });
 
+function extractWebAppData(ctx) {
+    return (
+        ctx.message?.web_app_data?.data ||
+        ctx.update?.message?.web_app_data?.data ||
+        ctx.callbackQuery?.web_app_data?.data ||
+        ctx.update?.callback_query?.web_app_data?.data ||
+        null
+    );
+}
+
 async function handleWebAppAction(ctx, rawData) {
     // Ждём JSON вида: { action:"BUY", productId:"batumi_full" }
     // Поддержим и старый формат: "GET_MINI" / "BUY_FULL" / "HOW_TO"
@@ -307,18 +317,17 @@ async function handleWebAppAction(ctx, rawData) {
 
 // Главный обработчик команд из Mini App (web_app_data) — сообщения
 bot.on("message", async (ctx) => {
-    const wa = ctx.message?.web_app_data;
-    if (!wa?.data) return;
-
-    return handleWebAppAction(ctx, wa.data);
+    const data = extractWebAppData(ctx);
+    if (!data) return;
+    return handleWebAppAction(ctx, data);
 });
 
 // На некоторых клиентах web_app_data приходит как callback_query
 bot.on("callback_query", async (ctx) => {
-    const wa = ctx.callbackQuery?.web_app_data;
-    if (!wa?.data) return;
+    const data = extractWebAppData(ctx);
+    if (!data) return;
     try { await ctx.answerCbQuery(); } catch {}
-    return handleWebAppAction(ctx, wa.data);
+    return handleWebAppAction(ctx, data);
 });
 
 bot.catch((err) => console.error("BOT ERROR:", err));
