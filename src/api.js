@@ -84,7 +84,7 @@ function readJsonBody(req) {
     });
 }
 
-export function startApiServer({ port, botToken }) {
+export function startApiServer({ port, botToken, onAction }) {
     const server = http.createServer(async (req, res) => {
         setCors(res);
         if (req.method === "OPTIONS") {
@@ -93,6 +93,7 @@ export function startApiServer({ port, botToken }) {
         }
 
         const url = new URL(req.url || "/", "http://localhost");
+        const isJsonRequest = req.headers["content-type"]?.includes("application/json");
 
         if (url.pathname === "/health" || url.pathname === "/api/health") {
             return sendJson(res, 200, { ok: true });
@@ -122,6 +123,42 @@ export function startApiServer({ port, botToken }) {
             const purchasesDetailed = await listPurchasesAsync(userId);
             const purchases = purchasesDetailed.map((p) => p.productId);
             return sendJson(res, 200, { ok: true, userId, purchases, purchasesDetailed });
+        }
+
+        if (url.pathname === "/api/action") {
+            if (req.method !== "POST" || !isJsonRequest) {
+                return sendJson(res, 405, { ok: false, error: "method_not_allowed" });
+            }
+
+            const body = await readJsonBody(req);
+            const initData = body?.initData;
+            const action = body?.action;
+            const productId = body?.productId || null;
+
+            if (!initData || !action) {
+                return sendJson(res, 400, { ok: false, error: "initData_or_action_missing" });
+            }
+
+            const verified = verifyInitData(initData, botToken);
+            if (!verified) {
+                return sendJson(res, 401, { ok: false, error: "invalid_init_data" });
+            }
+
+            const userId = parseUserId(verified);
+            if (!userId) {
+                return sendJson(res, 400, { ok: false, error: "user_id_missing" });
+            }
+
+            if (typeof onAction !== "function") {
+                return sendJson(res, 500, { ok: false, error: "action_handler_missing" });
+            }
+
+            try {
+                await onAction({ userId, action, productId });
+                return sendJson(res, 200, { ok: true });
+            } catch (e) {
+                return sendJson(res, 500, { ok: false, error: "action_failed" });
+            }
         }
 
         return sendJson(res, 404, { ok: false, error: "not_found" });

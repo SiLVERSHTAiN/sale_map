@@ -125,9 +125,21 @@ async function sendKmz(ctx, filePath, caption) {
     );
 }
 
+async function sendKmzToUser(userId, filePath, caption) {
+    await bot.telegram.sendDocument(
+        userId,
+        fileSource(filePath),
+        { caption, parse_mode: "Markdown" }
+    );
+}
+
 // -------------------- Business Logic --------------------
 async function handleHowTo(ctx) {
     await ctx.reply(instructionText(), { parse_mode: "Markdown" });
+}
+
+async function handleHowToToUser(userId) {
+    await bot.telegram.sendMessage(userId, instructionText(), { parse_mode: "Markdown" });
 }
 
 async function handleGetFile(ctx, productId) {
@@ -155,6 +167,29 @@ async function handleGetFile(ctx, productId) {
 
     await sendKmz(ctx, product.file, caption);
     await handleHowTo(ctx);
+}
+
+async function handleGetFileByUser(userId, productId) {
+    const { productsById, citiesById } = getCatalog();
+    const product = productsById[productId];
+
+    if (!product) {
+        await bot.telegram.sendMessage(userId, "Не нашёл такой продукт 🙈 Открой витрину ещё раз.");
+        return;
+    }
+
+    if (product.type === "full" && Number(product.priceStars || 0) > 0) {
+        if (!(await hasPurchaseAsync(userId, product.id))) {
+            await bot.telegram.sendMessage(userId, "Полная версия доступна после оплаты ⭐");
+            return;
+        }
+    }
+
+    const city = citiesById[product.cityId];
+    const caption = `✅ *${product.title || "Файл"}*\n${cityLabel(city)}`.trim();
+
+    await sendKmzToUser(userId, product.file, caption);
+    await handleHowToToUser(userId);
 }
 
 async function handleBuy(ctx, productId) {
@@ -194,6 +229,47 @@ async function handleBuy(ctx, productId) {
             product.description || "Файл .kmz (точки на карте) для Organic Maps / MAPS.ME.",
         payload: invoicePayload,
         provider_token: "", // Stars
+        currency: "XTR",
+        prices: [
+            {
+                label: `${city?.name || "Guide"} — ${product.type || "product"}`,
+                amount: Number(product.priceStars || 0),
+            },
+        ],
+    });
+}
+
+async function handleBuyByUser(userId, productId) {
+    const { productsById, citiesById } = getCatalog();
+    const product = productsById[productId];
+
+    if (!product) {
+        await bot.telegram.sendMessage(userId, "Не нашёл такой продукт 🙈 Открой витрину ещё раз.");
+        return;
+    }
+
+    if (Number(product.priceStars || 0) <= 0) {
+        return handleGetFileByUser(userId, product.id);
+    }
+
+    if (await hasPurchaseAsync(userId, product.id)) {
+        await bot.telegram.sendMessage(userId, "✅ Уже куплено. Отправляю файл ещё раз:");
+        return handleGetFileByUser(userId, product.id);
+    }
+
+    const city = citiesById[product.cityId];
+    const invoicePayload = JSON.stringify({
+        productId: product.id,
+        userId,
+        nonce: nanoid(10),
+    });
+
+    await bot.telegram.sendInvoice(userId, {
+        title: `${cityLabel(city)} — ${product.title || "Путеводитель"}`,
+        description:
+            product.description || "Файл .kmz (точки на карте) для Organic Maps / MAPS.ME.",
+        payload: invoicePayload,
+        provider_token: "",
         currency: "XTR",
         prices: [
             {
@@ -315,6 +391,27 @@ async function handleWebAppAction(ctx, rawData) {
     await ctx.reply("Неизвестное действие 🙈 Открой витрину ещё раз.", webAppKeyboardIfAny());
 }
 
+async function handleWebAppActionByUser({ userId, action, productId }) {
+    const { defaultMiniProductId, defaultFullProductId } = getCatalog();
+
+    let pid = productId || null;
+    if (!pid) {
+        if (action === "GET_MINI" || action === "GET_FILE") pid = defaultMiniProductId;
+        if (action === "BUY_FULL" || action === "BUY") pid = defaultFullProductId;
+    }
+
+    if (action === "HOW_TO") return handleHowToToUser(userId);
+    if (action === "GET_MINI" || action === "GET_FILE") {
+        if (!pid) return bot.telegram.sendMessage(userId, "Mini-версия не настроена в каталоге.");
+        return handleGetFileByUser(userId, pid);
+    }
+    if (action === "BUY_FULL" || action === "BUY") {
+        if (!pid) return bot.telegram.sendMessage(userId, "Full-версия не настроена в каталоге.");
+        return handleBuyByUser(userId, pid);
+    }
+    await bot.telegram.sendMessage(userId, "Неизвестное действие 🙈 Открой витрину ещё раз.");
+}
+
 // Главный обработчик команд из Mini App (web_app_data) — сообщения
 bot.on("message", async (ctx) => {
     const data = extractWebAppData(ctx);
@@ -337,6 +434,10 @@ await bot.telegram.deleteWebhook();
 
 bot.launch();
 console.log("Bot is running...");
-startApiServer({ port: PORT, botToken: BOT_TOKEN });
+startApiServer({
+    port: PORT,
+    botToken: BOT_TOKEN,
+    onAction: handleWebAppActionByUser,
+});
 process.once("SIGINT", () => bot.stop("SIGINT"));
 process.once("SIGTERM", () => bot.stop("SIGTERM"));
