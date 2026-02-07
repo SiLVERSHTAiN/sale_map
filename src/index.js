@@ -118,6 +118,11 @@ function webAppKeyboardIfAny() {
     ]);
 }
 
+function withWebAppKeyboard(options = {}) {
+    const kb = webAppKeyboardIfAny();
+    return kb ? { ...options, ...kb } : options;
+}
+
 async function sendKmz(ctx, filePath, caption) {
     await ctx.replyWithDocument(
         fileSource(filePath),
@@ -135,11 +140,18 @@ async function sendKmzToUser(userId, filePath, caption) {
 
 // -------------------- Business Logic --------------------
 async function handleHowTo(ctx) {
-    await ctx.reply(instructionText(), { parse_mode: "Markdown" });
+    await ctx.reply(
+        instructionText(),
+        withWebAppKeyboard({ parse_mode: "Markdown" })
+    );
 }
 
 async function handleHowToToUser(userId) {
-    await bot.telegram.sendMessage(userId, instructionText(), { parse_mode: "Markdown" });
+    await bot.telegram.sendMessage(
+        userId,
+        instructionText(),
+        withWebAppKeyboard({ parse_mode: "Markdown" })
+    );
 }
 
 async function handleGetFile(ctx, productId) {
@@ -147,7 +159,10 @@ async function handleGetFile(ctx, productId) {
     const product = productsById[productId];
 
     if (!product) {
-        await ctx.reply("Не нашёл такой продукт 🙈 Открой витрину ещё раз.", webAppKeyboardIfAny());
+        await ctx.reply(
+            "Не нашёл такой продукт 🙈 Открой витрину ещё раз.",
+            withWebAppKeyboard()
+        );
         return;
     }
 
@@ -157,7 +172,10 @@ async function handleGetFile(ctx, productId) {
         if (!userId) return;
 
         if (!(await hasPurchaseAsync(userId, product.id))) {
-            await ctx.reply("Полная версия доступна после оплаты ⭐", webAppKeyboardIfAny());
+            await ctx.reply(
+                "Полная версия доступна после оплаты ⭐",
+                withWebAppKeyboard()
+            );
             return;
         }
     }
@@ -174,13 +192,21 @@ async function handleGetFileByUser(userId, productId) {
     const product = productsById[productId];
 
     if (!product) {
-        await bot.telegram.sendMessage(userId, "Не нашёл такой продукт 🙈 Открой витрину ещё раз.");
+        await bot.telegram.sendMessage(
+            userId,
+            "Не нашёл такой продукт 🙈 Открой витрину ещё раз.",
+            withWebAppKeyboard()
+        );
         return;
     }
 
     if (product.type === "full" && Number(product.priceStars || 0) > 0) {
         if (!(await hasPurchaseAsync(userId, product.id))) {
-            await bot.telegram.sendMessage(userId, "Полная версия доступна после оплаты ⭐");
+            await bot.telegram.sendMessage(
+                userId,
+                "Полная версия доступна после оплаты ⭐",
+                withWebAppKeyboard()
+            );
             return;
         }
     }
@@ -197,7 +223,10 @@ async function handleBuy(ctx, productId) {
     const product = productsById[productId];
 
     if (!product) {
-        await ctx.reply("Не нашёл такой продукт 🙈 Открой витрину ещё раз.", webAppKeyboardIfAny());
+        await ctx.reply(
+            "Не нашёл такой продукт 🙈 Открой витрину ещё раз.",
+            withWebAppKeyboard()
+        );
         return;
     }
 
@@ -211,7 +240,10 @@ async function handleBuy(ctx, productId) {
 
   // уже куплено — выдаём без оплаты
     if (await hasPurchaseAsync(userId, product.id)) {
-        await ctx.reply("✅ Уже куплено. Отправляю файл ещё раз:");
+        await ctx.reply(
+            "✅ Уже куплено. Отправляю файл ещё раз:",
+            withWebAppKeyboard()
+        );
         return handleGetFile(ctx, product.id);
     }
 
@@ -244,7 +276,11 @@ async function handleBuyByUser(userId, productId) {
     const product = productsById[productId];
 
     if (!product) {
-        await bot.telegram.sendMessage(userId, "Не нашёл такой продукт 🙈 Открой витрину ещё раз.");
+        await bot.telegram.sendMessage(
+            userId,
+            "Не нашёл такой продукт 🙈 Открой витрину ещё раз.",
+            withWebAppKeyboard()
+        );
         return;
     }
 
@@ -253,7 +289,11 @@ async function handleBuyByUser(userId, productId) {
     }
 
     if (await hasPurchaseAsync(userId, product.id)) {
-        await bot.telegram.sendMessage(userId, "✅ Уже куплено. Отправляю файл ещё раз:");
+        await bot.telegram.sendMessage(
+            userId,
+            "✅ Уже куплено. Отправляю файл ещё раз:",
+            withWebAppKeyboard()
+        );
         return handleGetFileByUser(userId, product.id);
     }
 
@@ -288,16 +328,17 @@ bot.start(async (ctx) => {
 
     await ctx.reply(
         "Я собрал готовые места на карте: еда, виды, прогулки и много полезного.\n\nНажми кнопку «🗺 Открыть витрину» ниже 🔻 — выбирай город и получишь файл в этот чат.",
-        kb
-            ? { parse_mode: "Markdown", disable_web_page_preview: true, ...kb }
-            : { parse_mode: "Markdown", disable_web_page_preview: true }
+        withWebAppKeyboard({
+            parse_mode: "Markdown",
+            disable_web_page_preview: true,
+        })
     );
 });
 
 bot.command("support", async (ctx) => {
     await ctx.reply(
         "🆘 *Поддержка*\n\nОпиши проблему и пришли:\n— модель телефона\n— приложение (Organic Maps или MAPS.ME)\n— скрин/видео ошибки\n\nЯ помогу.",
-        { parse_mode: "Markdown" }
+        withWebAppKeyboard({ parse_mode: "Markdown" })
     );
 });
 
@@ -308,7 +349,10 @@ bot.command("catalog", async (ctx) => {
     const { catalog } = getCatalog();
     const cities = (catalog.cities || []).filter((c) => c.active !== false);
     const products = (catalog.products || []).filter((p) => p.active !== false);
-    await ctx.reply(`📦 Catalog OK\nCities: ${cities.length}\nProducts: ${products.length}`);
+    await ctx.reply(
+        `📦 Catalog OK\nCities: ${cities.length}\nProducts: ${products.length}`,
+        withWebAppKeyboard()
+    );
 });
 
 // Telegram требует отвечать на pre_checkout
@@ -334,7 +378,10 @@ bot.on("successful_payment", async (ctx) => {
     }
 
     if (!productId) {
-        await ctx.reply("✅ Оплата прошла, но я не понял какой продукт. Напиши /support");
+        await ctx.reply(
+            "✅ Оплата прошла, но я не понял какой продукт. Напиши /support",
+            withWebAppKeyboard()
+        );
         return;
     }
 
@@ -345,7 +392,10 @@ bot.on("successful_payment", async (ctx) => {
         payload: sp.invoice_payload,
     });
 
-    await ctx.reply("✅ Оплата прошла! Сейчас пришлю файл.");
+    await ctx.reply(
+        "✅ Оплата прошла! Сейчас пришлю файл.",
+        withWebAppKeyboard()
+    );
     await handleGetFile(ctx, productId);
 });
 
@@ -379,16 +429,29 @@ async function handleWebAppAction(ctx, rawData) {
     if (action === "HOW_TO") return handleHowTo(ctx);
 
     if (action === "GET_MINI" || action === "GET_FILE") {
-        if (!productId) return ctx.reply("Mini-версия не настроена в каталоге.");
+        if (!productId) {
+            return ctx.reply(
+                "Mini-версия не настроена в каталоге.",
+                withWebAppKeyboard()
+            );
+        }
         return handleGetFile(ctx, productId);
     }
 
     if (action === "BUY_FULL" || action === "BUY") {
-        if (!productId) return ctx.reply("Full-версия не настроена в каталоге.");
+        if (!productId) {
+            return ctx.reply(
+                "Full-версия не настроена в каталоге.",
+                withWebAppKeyboard()
+            );
+        }
         return handleBuy(ctx, productId);
     }
 
-    await ctx.reply("Неизвестное действие 🙈 Открой витрину ещё раз.", webAppKeyboardIfAny());
+    await ctx.reply(
+        "Неизвестное действие 🙈 Открой витрину ещё раз.",
+        withWebAppKeyboard()
+    );
 }
 
 async function handleWebAppActionByUser({ userId, action, productId }) {
@@ -402,14 +465,30 @@ async function handleWebAppActionByUser({ userId, action, productId }) {
 
     if (action === "HOW_TO") return handleHowToToUser(userId);
     if (action === "GET_MINI" || action === "GET_FILE") {
-        if (!pid) return bot.telegram.sendMessage(userId, "Mini-версия не настроена в каталоге.");
+        if (!pid) {
+            return bot.telegram.sendMessage(
+                userId,
+                "Mini-версия не настроена в каталоге.",
+                withWebAppKeyboard()
+            );
+        }
         return handleGetFileByUser(userId, pid);
     }
     if (action === "BUY_FULL" || action === "BUY") {
-        if (!pid) return bot.telegram.sendMessage(userId, "Full-версия не настроена в каталоге.");
+        if (!pid) {
+            return bot.telegram.sendMessage(
+                userId,
+                "Full-версия не настроена в каталоге.",
+                withWebAppKeyboard()
+            );
+        }
         return handleBuyByUser(userId, pid);
     }
-    await bot.telegram.sendMessage(userId, "Неизвестное действие 🙈 Открой витрину ещё раз.");
+    await bot.telegram.sendMessage(
+        userId,
+        "Неизвестное действие 🙈 Открой витрину ещё раз.",
+        withWebAppKeyboard()
+    );
 }
 
 // Главный обработчик команд из Mini App (web_app_data) — сообщения
