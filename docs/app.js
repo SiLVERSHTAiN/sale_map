@@ -220,19 +220,21 @@ function renderCityCard(city, products, purchasedSet){
             <p class="lead">Готовый набор точек: еда, виды, прогулки, полезное.</p>
         
             <div class="row">
-                ${mini ? `
-                    <div class="badge">
-                        <div class="t">${esc(mini.title || 'Mini')}</div>
-                        <div class="v">${esc(mini.subtitle || starsLabel(mini.priceStars))}</div>
-                    </div>` : ''
-                }
-                
-                ${full ? `
-                    <div class="badge">
-                        <div class="t">${esc(full.title || 'Full')}</div>
-                        <div class="v">${esc(full.subtitle || starsLabel(full.priceStars))}</div>
-                    </div>` : ''
-                }
+                ${hasPurchase ? '' : `
+                    ${mini ? `
+                        <div class="badge">
+                            <div class="t">${esc(mini.title || 'Mini')}</div>
+                            <div class="v">${esc(mini.subtitle || starsLabel(mini.priceStars))}</div>
+                        </div>` : ''
+                    }
+                    
+                    ${full ? `
+                        <div class="badge">
+                            <div class="t">${esc(full.title || 'Full')}</div>
+                            <div class="v">${esc(full.subtitle || starsLabel(full.priceStars))}</div>
+                        </div>` : ''
+                    }
+                `}
                 
                 <div class="badge">
                     <div class="t">Обновления</div>
