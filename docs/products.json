@@ -12,6 +12,7 @@
             "subtitle": "Бесплатно ✅",
             "description": "Короткий набор ключевых мест: еда, виды, прогулки и полезные точки.",
             "priceStars": 0,
+            "updatedAt": "2026-02-07T00:00:00Z",
             "file": "https://pub-88906c2943024ae0a8acd2a4942d3a0e.r2.dev/batumi-mini.kmz",
             "active": true
         },
@@ -22,6 +23,7 @@
             "title": "Полная версия",
             "subtitle": "199 ⭐ Stars",
             "priceStars": 199,
+            "updatedAt": "2026-02-07T00:00:00Z",
             "file": "https://pub-88906c2943024ae0a8acd2a4942d3a0e.r2.dev/batumi-full.kmz",
             "active": true
         },
@@ -33,6 +35,7 @@
             "subtitle": "Бесплатно ✅",
             "description": "Короткий набор ключевых мест: еда, виды, прогулки и полезные точки.",
             "priceStars": 0,
+            "updatedAt": "2026-02-07T00:00:00Z",
             "file": "https://pub-88906c2943024ae0a8acd2a4942d3a0e.r2.dev/tbilisi-mini.kmz",
             "active": true
         },
@@ -43,6 +46,7 @@
             "title":"Полная версия",
             "subtitle":"199 ⭐ Stars",
             "priceStars":199,
+            "updatedAt": "2026-02-07T00:00:00Z",
             "file":"https://pub-88906c2943024ae0a8acd2a4942d3a0e.r2.dev/tbilisi-full.kmz",
             "active": true
         }

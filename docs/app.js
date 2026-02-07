@@ -93,7 +93,8 @@ function writeEntitlementsCache(data){
         const payload = {
             ts: Date.now(),
             userId: data?.userId || null,
-            purchases: Array.isArray(data?.purchases) ? data.purchases : []
+            purchases: Array.isArray(data?.purchases) ? data.purchases : [],
+            purchasesDetailed: Array.isArray(data?.purchasesDetailed) ? data.purchasesDetailed : []
         };
         sessionStorage.setItem(ENTITLEMENTS_KEY, JSON.stringify(payload));
     }catch(e){}
@@ -188,13 +189,26 @@ function safeId(value){
         .replace(/^-+|-+$/g, '') || 'city';
 }
 
+function toMs(value){
+    const t = Date.parse(value || '');
+    return Number.isFinite(t) ? t : null;
+}
+
+function hasUpdate(product, paidAt){
+    if (!product?.updatedAt || !paidAt) return false;
+    const updated = toMs(product.updatedAt);
+    const paid = toMs(paidAt);
+    if (!updated || !paid) return false;
+    return updated > paid;
+}
+
 function starsLabel(priceStars){
     const n = Number(priceStars || 0);
     return n <= 0 ? 'Бесплатно ✅' : `${n} ⭐ Stars`;
 }
 
 // Рисуем карточку города из твоих CSS-классов (.card, .pill, .badge, .btn...)
-function renderCityCard(city, products, purchasedSet){
+function renderCityCard(city, products, purchasedSet, purchaseMap){
     const cityProducts = products.filter(p => p.cityId === city.id && p.active !== false);
     const mini = cityProducts.find(p => p.type === 'mini');
     const full = cityProducts.find(p => p.type === 'full');
@@ -205,6 +219,8 @@ function renderCityCard(city, products, purchasedSet){
     const purchasedProduct = purchasedProducts
         .sort((a, b) => Number(b.priceStars || 0) - Number(a.priceStars || 0))[0];
     const hasPurchase = Boolean(purchasedProduct);
+    const paidAt = hasPurchase && purchaseMap ? purchaseMap.get(purchasedProduct.id) : null;
+    const updateAvailable = hasPurchase ? hasUpdate(purchasedProduct, paidAt) : false;
     
     return `
         <div class="card" id="city-${cid}" data-city="${esc(city.id)}">
@@ -244,8 +260,8 @@ function renderCityCard(city, products, purchasedSet){
         
             <div class="actions">
                 ${hasPurchase ? `
-                    <button class="btn primary" data-action="GET_FILE" data-product="${esc(purchasedProduct.id)}">
-                        ⬇️ Скачать снова
+                    <button class="btn ${updateAvailable ? 'primary' : ''}" data-action="GET_FILE" data-product="${esc(purchasedProduct.id)}">
+                        ${updateAvailable ? '🟢 Обновление — скачать' : '⬇️ Скачать снова'}
                     </button>` : `
                     ${mini ? `
                         <button class="btn" data-action="GET_FILE" data-product="${esc(mini.id)}">
@@ -442,8 +458,17 @@ async function init(){
         ]);
         const cities = (data.cities || []).filter(c => c && c.active !== false);
         const products = (data.products || []).filter(p => p && p.active !== false);
-        const purchasedSet = entitlements?.purchases
-            ? new Set(entitlements.purchases.map(String))
+        const purchasesDetailed = Array.isArray(entitlements?.purchasesDetailed)
+            ? entitlements.purchasesDetailed
+            : [];
+        const purchasesList = Array.isArray(entitlements?.purchases)
+            ? entitlements.purchases
+            : purchasesDetailed.map(p => p.productId);
+        const purchasedSet = purchasesList.length
+            ? new Set(purchasesList.map(String))
+            : null;
+        const purchaseMap = purchasesDetailed.length
+            ? new Map(purchasesDetailed.map(p => [String(p.productId), p.paidAt || null]))
             : null;
         
         if (!cities.length){
@@ -460,7 +485,7 @@ async function init(){
         }
 
         hideSkeleton(el);
-        el.innerHTML = cities.map(c => renderCityCard(c, products, purchasedSet)).join('');
+        el.innerHTML = cities.map(c => renderCityCard(c, products, purchasedSet, purchaseMap)).join('');
         bindButtons(el);
         setupActiveCardTracking(el);
         scrollToHash();
