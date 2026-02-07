@@ -113,9 +113,9 @@ function safeJsonParse(s) {
 }
 
 function webAppKeyboardIfAny() {
-    return Markup.keyboard([[Markup.button.webApp("🗺 Открыть витрину", WEBAPP_URL)]])
-        .resize()
-        .persistent();
+    return Markup.inlineKeyboard([
+        Markup.button.webApp("🗺 Открыть витрину", WEBAPP_URL),
+    ]);
 }
 
 async function sendKmz(ctx, filePath, caption) {
@@ -209,6 +209,15 @@ const bot = new Telegraf(BOT_TOKEN);
 
 bot.start(async (ctx) => {
     const kb = webAppKeyboardIfAny();
+
+    // Удаляем старую reply-клавиатуру (она может открывать WebApp без initData на Desktop)
+    try {
+        await ctx.reply(
+            "Кнопка витрины обновлена ✅",
+            { reply_markup: { remove_keyboard: true }, disable_notification: true }
+        );
+    } catch {}
+
     await ctx.reply(
         "Я собрал готовые места на карте: еда, виды, прогулки и много полезного.\n\nНажми кнопку «🗺 Открыть витрину» ниже 🔻 — выбирай город и получишь файл в этот чат.",
         kb
