@@ -107,24 +107,6 @@ a.chip:hover{
   box-shadow: 0 14px 30px rgba(56,189,248,.18);
 }
 
-.debugPanel{
-  position: fixed;
-  left: 10px;
-  right: 10px;
-  bottom: calc(10px + env(safe-area-inset-bottom));
-  max-height: 40vh;
-  overflow: auto;
-  background: rgba(2,6,23,.85);
-  color: #e2e8f0;
-  border: 1px solid rgba(148,163,184,.2);
-  border-radius: 12px;
-  padding: 10px;
-  font-size: 11px;
-  z-index: 999;
-  white-space: pre-wrap;
-  pointer-events: none;
-}
-
 .grid{
   display:grid;
   grid-template-columns: 1fr;

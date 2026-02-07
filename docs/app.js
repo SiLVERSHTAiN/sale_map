@@ -2,49 +2,7 @@ const tg = window.Telegram?.WebApp;
 const isTg = !!tg;
 const APP_CONFIG = window.APP_CONFIG || {};
 const API_BASE = String(APP_CONFIG.API_BASE || "").replace(/\/$/, "");
-const DEBUG = new URLSearchParams(window.location.search).get('debug') === '1';
-
-let debugState = null;
-
-function getDebugPanel(){
-    let panel = document.querySelector('.debugPanel');
-    if (panel) return panel;
-    panel = document.createElement('pre');
-    panel.className = 'debugPanel';
-    document.body.appendChild(panel);
-    return panel;
-}
-
-function renderDebug(){
-    if (!DEBUG) return;
-    const panel = getDebugPanel();
-    panel.textContent = JSON.stringify(debugState, null, 2);
-}
-
-function initDebug(page){
-    if (!DEBUG) return;
-    const params = new URLSearchParams(window.location.search);
-    debugState = {
-        page,
-        isTg,
-        apiBase: API_BASE,
-        initDataLength: tg?.initData?.length || 0,
-        initDataParam: Boolean(params.get('tgWebAppData')),
-        platform: tg?.platform || null,
-        version: tg?.version || null,
-        unsafeUserId: tg?.initDataUnsafe?.user?.id || null,
-        entitlementsStatus: null,
-        entitlements: null,
-        entitlementsError: null
-    };
-    renderDebug();
-}
-
-function updateDebug(patch){
-    if (!DEBUG || !debugState) return;
-    Object.assign(debugState, patch);
-    renderDebug();
-}
+const DEBUG = false;
 
 function applyTelegramTheme(){
     if (!isTg) return;
@@ -97,16 +55,9 @@ async function waitInitData(timeoutMs = 2000){
 }
 
 async function loadEntitlements(){
-    if (!API_BASE || !isTg) {
-        updateDebug({ entitlementsError: !API_BASE ? 'api_base_missing' : 'not_in_telegram' });
-        return null;
-    }
+    if (!API_BASE || !isTg) return null;
     const initData = await waitInitData();
-    updateDebug({ initDataLength: initData.length || 0 });
-    if (!initData) {
-        updateDebug({ entitlementsError: 'initData_missing' });
-        return null;
-    }
+    if (!initData) return null;
 
     try{
         const res = await fetch(`${API_BASE}/api/entitlements`, {
@@ -114,19 +65,11 @@ async function loadEntitlements(){
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ initData })
         });
-        let data = null;
-        try{
-            data = await res.json();
-        }catch(e){
-            updateDebug({ entitlementsStatus: res.status, entitlementsError: 'invalid_json' });
-            return null;
-        }
-        updateDebug({ entitlementsStatus: res.status, entitlements: data });
+        const data = await res.json();
         if (!res.ok || !data?.ok) return null;
         return data;
     }catch(e){
         console.warn('entitlements failed', e);
-        updateDebug({ entitlementsError: String(e) });
         return null;
     }
 }
@@ -454,7 +397,6 @@ async function init(){
     setupFloatingAction();
     const el = document.getElementById('catalog');
     const page = document.body?.dataset?.page || 'home';
-    initDebug(page);
     if (el) showSkeleton(el, page);
     try{
         const [data, entitlements] = await Promise.all([
