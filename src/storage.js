@@ -67,7 +67,11 @@ export function listPurchases(userId) {
     if (!DATABASE_URL) {
         const db = readDb();
         const u = db.users?.[String(userId)];
-        return Object.keys(u?.purchases || {});
+        const purchases = u?.purchases || {};
+        return Object.entries(purchases).map(([productId, info]) => ({
+            productId,
+            paidAt: info?.paidAt || null,
+        }));
     }
     return [];
 }
@@ -106,10 +110,13 @@ export async function listPurchasesAsync(userId) {
     if (!p) return listPurchases(userId);
     await ensurePgSchema();
     const res = await p.query(
-        "SELECT product_id FROM purchases WHERE user_id = $1",
+        "SELECT product_id, paid_at FROM purchases WHERE user_id = $1",
         [Number(userId)]
     );
-    return res.rows.map((row) => row.product_id);
+    return res.rows.map((row) => ({
+        productId: row.product_id,
+        paidAt: row.paid_at ? new Date(row.paid_at).toISOString() : null,
+    }));
 }
 
 export async function storePurchaseAsync({ userId, productId, telegramPaymentChargeId, payload }) {

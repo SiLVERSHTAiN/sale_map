@@ -119,8 +119,9 @@ export function startApiServer({ port, botToken }) {
                 return sendJson(res, 400, { ok: false, error: "user_id_missing" });
             }
 
-            const purchases = await listPurchasesAsync(userId);
-            return sendJson(res, 200, { ok: true, userId, purchases });
+            const purchasesDetailed = await listPurchasesAsync(userId);
+            const purchases = purchasesDetailed.map((p) => p.productId);
+            return sendJson(res, 200, { ok: true, userId, purchases, purchasesDetailed });
         }
 
         return sendJson(res, 404, { ok: false, error: "not_found" });
