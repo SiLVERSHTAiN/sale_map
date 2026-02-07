@@ -23,11 +23,16 @@ function renderDebug(){
 
 function initDebug(page){
     if (!DEBUG) return;
+    const params = new URLSearchParams(window.location.search);
     debugState = {
         page,
         isTg,
         apiBase: API_BASE,
         initDataLength: tg?.initData?.length || 0,
+        initDataParam: Boolean(params.get('tgWebAppData')),
+        platform: tg?.platform || null,
+        version: tg?.version || null,
+        unsafeUserId: tg?.initDataUnsafe?.user?.id || null,
         entitlementsStatus: null,
         entitlements: null,
         entitlementsError: null
@@ -73,12 +78,31 @@ function applyTelegramTheme(){
     try { tg.setBackgroundColor?.(scheme === 'light' ? '#f6f7fb' : '#0b1220'); } catch(e){}
 }
 
+function getInitData(){
+    const tgNow = window.Telegram?.WebApp;
+    const raw = tgNow?.initData || '';
+    if (raw) return raw;
+    const params = new URLSearchParams(window.location.search);
+    return params.get('tgWebAppData') || '';
+}
+
+async function waitInitData(timeoutMs = 2000){
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+        const d = getInitData();
+        if (d) return d;
+        await new Promise(r => setTimeout(r, 150));
+    }
+    return '';
+}
+
 async function loadEntitlements(){
     if (!API_BASE || !isTg) {
         updateDebug({ entitlementsError: !API_BASE ? 'api_base_missing' : 'not_in_telegram' });
         return null;
     }
-    const initData = tg?.initData;
+    const initData = await waitInitData();
+    updateDebug({ initDataLength: initData.length || 0 });
     if (!initData) {
         updateDebug({ entitlementsError: 'initData_missing' });
         return null;
