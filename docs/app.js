@@ -260,7 +260,7 @@ function renderCityCard(city, products, purchasedSet, purchaseMap){
         
             <div class="actions">
                 ${hasPurchase ? `
-                    <button class="btn ${updateAvailable ? 'primary' : ''}" data-action="GET_FILE" data-product="${esc(purchasedProduct.id)}">
+                    <button class="btn primary" data-action="GET_FILE" data-product="${esc(purchasedProduct.id)}">
                         ${updateAvailable ? '🟢 Обновление — скачать' : '⬇️ Скачать снова'}
                     </button>` : `
                     ${mini ? `
