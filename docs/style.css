@@ -401,19 +401,20 @@ a.chip:hover{
 
 .doc-lines{
   display: grid;
-  gap: 8px;
-  margin-top: 6px;
+  gap: 0;
 }
 
 .doc-line{
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  padding: 8px 10px;
-  border-radius: 12px;
-  background: rgba(255,255,255,.04);
-  border: 1px solid rgba(255,255,255,.06);
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
   font-size: 13px;
+}
+
+.doc-line:last-child{
+  border-bottom: none;
 }
 
 .doc-line .label{
@@ -441,28 +442,38 @@ a.chip:hover{
   padding: 0;
   list-style: none;
   display: grid;
-  gap: 8px;
+  gap: 0;
   color: var(--muted);
   font-size: 13px;
 }
 
 .doc-list li{
-  padding: 8px 10px 8px 28px;
-  border-radius: 12px;
-  background: rgba(255,255,255,.04);
-  border: 1px solid rgba(255,255,255,.06);
+  padding: 10px 12px 10px 30px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
   position: relative;
+}
+
+.doc-list li:last-child{
+  border-bottom: none;
 }
 
 .doc-list li::before{
   content: '';
   position: absolute;
-  left: 10px;
-  top: 14px;
+  left: 12px;
+  top: 16px;
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: rgba(56,189,248,.7);
+}
+
+.doc-box{
+  margin-top: 6px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.06);
+  overflow: hidden;
 }
 
 .doc-note{
