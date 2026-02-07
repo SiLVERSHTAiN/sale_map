@@ -13,6 +13,7 @@
   --radius: 18px;
   --skeleton: rgba(255,255,255,.08);
   --skeletonShine: rgba(255,255,255,.18);
+  --fab-offset: 56px;
 }
 
 *{box-sizing:border-box}
@@ -84,7 +85,7 @@ a.chip:hover{
 .fab{
   position: fixed;
   right: 16px;
-  bottom: calc(16px + env(safe-area-inset-bottom));
+  bottom: calc(var(--fab-offset) + env(safe-area-inset-bottom));
   z-index: 20;
   padding: 10px 14px;
   height: auto;
