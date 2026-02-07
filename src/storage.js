@@ -30,10 +30,15 @@ async function ensurePgSchema() {
             user_id BIGINT NOT NULL,
             product_id TEXT NOT NULL,
             paid_at TIMESTAMPTZ NOT NULL,
+            last_downloaded_at TIMESTAMPTZ,
             telegram_payment_charge_id TEXT,
             payload JSONB,
             PRIMARY KEY (user_id, product_id)
         );
+    `);
+    await p.query(`
+        ALTER TABLE purchases
+        ADD COLUMN IF NOT EXISTS last_downloaded_at TIMESTAMPTZ;
     `);
     dbReady = true;
 }
@@ -71,6 +76,7 @@ export function listPurchases(userId) {
         return Object.entries(purchases).map(([productId, info]) => ({
             productId,
             paidAt: info?.paidAt || null,
+            lastDownloadedAt: info?.lastDownloadedAt || null,
         }));
     }
     return [];
@@ -86,6 +92,7 @@ export function storePurchase({ userId, productId, telegramPaymentChargeId, payl
 
         db.users[key].purchases[productId] = {
             paidAt: new Date().toISOString(),
+            lastDownloadedAt: null,
             telegramPaymentChargeId,
             payload,
         };
@@ -110,12 +117,15 @@ export async function listPurchasesAsync(userId) {
     if (!p) return listPurchases(userId);
     await ensurePgSchema();
     const res = await p.query(
-        "SELECT product_id, paid_at FROM purchases WHERE user_id = $1",
+        "SELECT product_id, paid_at, last_downloaded_at FROM purchases WHERE user_id = $1",
         [Number(userId)]
     );
     return res.rows.map((row) => ({
         productId: row.product_id,
         paidAt: row.paid_at ? new Date(row.paid_at).toISOString() : null,
+        lastDownloadedAt: row.last_downloaded_at
+            ? new Date(row.last_downloaded_at).toISOString()
+            : null,
     }));
 }
 
@@ -134,5 +144,30 @@ export async function storePurchaseAsync({ userId, productId, telegramPaymentCha
             payload = EXCLUDED.payload
         `,
         [Number(userId), String(productId), telegramPaymentChargeId || null, payload || null]
+    );
+}
+
+export function markDownload({ userId, productId }) {
+    if (!DATABASE_URL) {
+        const db = readDb();
+        const key = String(userId);
+        const record = db.users?.[key]?.purchases?.[productId];
+        if (!record) return;
+        record.lastDownloadedAt = new Date().toISOString();
+        writeDb(db);
+    }
+}
+
+export async function markDownloadAsync(userId, productId) {
+    const p = getPool();
+    if (!p) return markDownload({ userId, productId });
+    await ensurePgSchema();
+    await p.query(
+        `
+        UPDATE purchases
+        SET last_downloaded_at = NOW()
+        WHERE user_id = $1 AND product_id = $2
+        `,
+        [Number(userId), String(productId)]
     );
 }

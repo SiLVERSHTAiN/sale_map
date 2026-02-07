@@ -4,7 +4,7 @@ import path from "path";
 import { Telegraf, Markup } from "telegraf";
 import { nanoid } from "nanoid";
 
-import { hasPurchaseAsync, storePurchaseAsync } from "./storage.js";
+import { hasPurchaseAsync, markDownloadAsync, storePurchaseAsync } from "./storage.js";
 import { startApiServer } from "./api.js";
 
 // -------------------- ENV --------------------
@@ -184,6 +184,10 @@ async function handleGetFile(ctx, productId) {
     const caption = `✅ *${product.title || "Файл"}*\n${cityLabel(city)}`.trim();
 
     await sendKmz(ctx, product.file, caption);
+    const userId = ctx.from?.id;
+    if (userId) {
+        await markDownloadAsync(userId, product.id);
+    }
     await handleHowTo(ctx);
 }
 
@@ -215,6 +219,9 @@ async function handleGetFileByUser(userId, productId) {
     const caption = `✅ *${product.title || "Файл"}*\n${cityLabel(city)}`.trim();
 
     await sendKmzToUser(userId, product.file, caption);
+    if (userId) {
+        await markDownloadAsync(userId, product.id);
+    }
     await handleHowToToUser(userId);
 }
 

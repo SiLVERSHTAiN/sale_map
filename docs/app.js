@@ -2,7 +2,7 @@ const tg = window.Telegram?.WebApp;
 const isTg = !!tg;
 const APP_CONFIG = window.APP_CONFIG || {};
 const API_BASE = String(APP_CONFIG.API_BASE || "").replace(/\/$/, "");
-const ENTITLEMENTS_KEY = 'entitlements.v1';
+const ENTITLEMENTS_KEY = 'entitlements.v2';
 const ENTITLEMENTS_TTL = 10 * 60 * 1000;
 
 function applyTelegramTheme(){
@@ -82,7 +82,12 @@ function readEntitlementsCache(){
         const data = JSON.parse(raw);
         if (!data || !Array.isArray(data.purchases)) return null;
         if (Date.now() - Number(data.ts || 0) > ENTITLEMENTS_TTL) return null;
-        return { ok: true, userId: data.userId || null, purchases: data.purchases || [] };
+        return {
+            ok: true,
+            userId: data.userId || null,
+            purchases: data.purchases || [],
+            purchasesDetailed: Array.isArray(data.purchasesDetailed) ? data.purchasesDetailed : []
+        };
     }catch(e){
         return null;
     }
@@ -172,10 +177,12 @@ async function send(action, productId){
                 body: JSON.stringify({ initData, action, productId })
             });
         }catch(e){}
+        try { sessionStorage.removeItem(ENTITLEMENTS_KEY); } catch(e){}
         setTimeout(() => { try { tg.close(); } catch(e){} }, 80);
         return;
     }
     tg.sendData(payload);
+    try { sessionStorage.removeItem(ENTITLEMENTS_KEY); } catch(e){}
     setTimeout(() => { try { tg.close(); } catch(e){} }, 80);
 }
 
@@ -206,12 +213,14 @@ function toMs(value){
     return Number.isFinite(t) ? t : null;
 }
 
-function hasUpdate(product, paidAt){
-    if (!product?.updatedAt || !paidAt) return false;
+function hasUpdate(product, paidAt, lastDownloadedAt){
+    if (!product?.updatedAt) return false;
+    const base = lastDownloadedAt || paidAt;
+    if (!base) return false;
     const updated = toMs(product.updatedAt);
-    const paid = toMs(paidAt);
-    if (!updated || !paid) return false;
-    return updated > paid;
+    const last = toMs(base);
+    if (!updated || !last) return false;
+    return updated > last;
 }
 
 function starsLabel(priceStars){
@@ -231,8 +240,12 @@ function renderCityCard(city, products, purchasedSet, purchaseMap){
     const purchasedProduct = purchasedProducts
         .sort((a, b) => Number(b.priceStars || 0) - Number(a.priceStars || 0))[0];
     const hasPurchase = Boolean(purchasedProduct);
-    const paidAt = hasPurchase && purchaseMap ? purchaseMap.get(purchasedProduct.id) : null;
-    const updateAvailable = hasPurchase ? hasUpdate(purchasedProduct, paidAt) : false;
+    const purchaseInfo = hasPurchase && purchaseMap ? purchaseMap.get(purchasedProduct.id) : null;
+    const paidAt = purchaseInfo?.paidAt || null;
+    const lastDownloadedAt = purchaseInfo?.lastDownloadedAt || null;
+    const updateAvailable = hasPurchase
+        ? hasUpdate(purchasedProduct, paidAt, lastDownloadedAt)
+        : false;
     
     return `
         <div class="card" id="city-${cid}" data-city="${esc(city.id)}">
@@ -480,7 +493,13 @@ async function init(){
             ? new Set(purchasesList.map(String))
             : null;
         const purchaseMap = purchasesDetailed.length
-            ? new Map(purchasesDetailed.map(p => [String(p.productId), p.paidAt || null]))
+            ? new Map(purchasesDetailed.map(p => [
+                String(p.productId),
+                {
+                    paidAt: p.paidAt || null,
+                    lastDownloadedAt: p.lastDownloadedAt || null
+                }
+            ]))
             : null;
         
         if (!cities.length){
