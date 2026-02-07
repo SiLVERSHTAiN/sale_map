@@ -157,10 +157,22 @@ function haptic(type='impact', style='light'){
 }
 
 // ВАЖНО: теперь send принимает (action, productId)
-function send(action, productId){
+async function send(action, productId){
     const payload = JSON.stringify({ action, productId });
     if (!isTg){
         alert('Открой mini-приложение внутри Telegram.\n\n' + payload);
+        return;
+    }
+    const initData = await waitInitData(1200);
+    if (API_BASE && initData) {
+        try{
+            await fetch(`${API_BASE}/api/action`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ initData, action, productId })
+            });
+        }catch(e){}
+        setTimeout(() => { try { tg.close(); } catch(e){} }, 80);
         return;
     }
     tg.sendData(payload);
