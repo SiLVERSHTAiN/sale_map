@@ -345,6 +345,40 @@ a.chip:hover{
   padding-bottom: 6px;
 }
 
+.footer a{
+  color: inherit;
+  text-decoration: underline;
+}
+
+.card.doc h2{
+  margin: 0 0 8px;
+  font-size: 16px;
+  letter-spacing: -.2px;
+}
+
+.card.doc p{
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.doc-list{
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.doc-list li{
+  margin: 6px 0;
+}
+
+.doc-note{
+  color: rgba(154,164,178,.9);
+  font-size: 12px;
+  margin-top: 8px;
+}
+
 .error{
   background: #2b1220;
   border: 1px solid rgba(239,68,68,.35);
