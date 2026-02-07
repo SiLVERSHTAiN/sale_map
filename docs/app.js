@@ -2,7 +2,8 @@ const tg = window.Telegram?.WebApp;
 const isTg = !!tg;
 const APP_CONFIG = window.APP_CONFIG || {};
 const API_BASE = String(APP_CONFIG.API_BASE || "").replace(/\/$/, "");
-const DEBUG = false;
+const ENTITLEMENTS_KEY = 'entitlements.v1';
+const ENTITLEMENTS_TTL = 10 * 60 * 1000;
 
 function applyTelegramTheme(){
     if (!isTg) return;
@@ -72,6 +73,39 @@ async function loadEntitlements(){
         console.warn('entitlements failed', e);
         return null;
     }
+}
+
+function readEntitlementsCache(){
+    try{
+        const raw = sessionStorage.getItem(ENTITLEMENTS_KEY);
+        if (!raw) return null;
+        const data = JSON.parse(raw);
+        if (!data || !Array.isArray(data.purchases)) return null;
+        if (Date.now() - Number(data.ts || 0) > ENTITLEMENTS_TTL) return null;
+        return { ok: true, userId: data.userId || null, purchases: data.purchases || [] };
+    }catch(e){
+        return null;
+    }
+}
+
+function writeEntitlementsCache(data){
+    try{
+        const payload = {
+            ts: Date.now(),
+            userId: data?.userId || null,
+            purchases: Array.isArray(data?.purchases) ? data.purchases : []
+        };
+        sessionStorage.setItem(ENTITLEMENTS_KEY, JSON.stringify(payload));
+    }catch(e){}
+}
+
+async function getEntitlements({ allowFetch = true } = {}){
+    const cached = readEntitlementsCache();
+    if (cached) return cached;
+    if (!allowFetch) return null;
+    const fresh = await loadEntitlements();
+    if (fresh) writeEntitlementsCache(fresh);
+    return fresh;
 }
 
 const LINKS = {
@@ -399,9 +433,10 @@ async function init(){
     const page = document.body?.dataset?.page || 'home';
     if (el) showSkeleton(el, page);
     try{
+        const allowFetchEntitlements = page === 'home';
         const [data, entitlements] = await Promise.all([
             loadCatalog(),
-            loadEntitlements()
+            getEntitlements({ allowFetch: allowFetchEntitlements })
         ]);
         const cities = (data.cities || []).filter(c => c && c.active !== false);
         const products = (data.products || []).filter(p => p && p.active !== false);
