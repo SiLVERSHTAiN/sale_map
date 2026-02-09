@@ -134,7 +134,12 @@
         const list = document.getElementById('products-list');
 
         function priceLabel(p){
-            if (p && p.priceRub != null) return `${p.priceRub} ₽`;
+            if (p && p.priceRub != null) {
+                const now = Number(p.priceRub || 0);
+                const old = Number(p.priceRubOld || 0);
+                if (Number.isFinite(old) && old > now) return `${now} ₽ (вместо ${old} ₽)`;
+                return `${now} ₽`;
+            }
             const stars = Number(p?.priceStars || 0);
             if (!Number.isFinite(stars) || stars <= 0) return 'Бесплатно';
             return `${stars} ⭐ Stars`;

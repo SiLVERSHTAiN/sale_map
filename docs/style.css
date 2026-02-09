@@ -297,6 +297,10 @@ a.chip:hover{
   user-select:none;
   -webkit-tap-highlight-color: transparent;
 }
+
+a.btn{
+  text-decoration: none;
+}
 .btn:active{ transform: translateY(1px); }
 
 .btn.primary{
@@ -309,6 +313,20 @@ a.chip:hover{
 .btn.ghost{
   background: transparent;
   box-shadow:none;
+}
+
+.btn.disabled,
+.btn:disabled{
+  opacity: .6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.price-old{
+  font-size: 12px;
+  font-weight: 700;
+  opacity: .75;
+  text-decoration: line-through;
 }
 
 .hint{

@@ -228,6 +228,20 @@ function starsLabel(priceStars){
     return n <= 0 ? 'Бесплатно ✅' : `${n} ⭐ Stars`;
 }
 
+function rubLabel(priceRub){
+    const n = Number(priceRub || 0);
+    if (!Number.isFinite(n) || n <= 0) return '';
+    return `${n} ₽`;
+}
+
+function promoLabel(priceRub, priceRubOld){
+    const now = Number(priceRub || 0);
+    const old = Number(priceRubOld || 0);
+    if (!Number.isFinite(now) || now <= 0) return '';
+    if (Number.isFinite(old) && old > now) return `${now} ₽ (вместо ${old} ₽)`;
+    return `${now} ₽`;
+}
+
 // Рисуем карточку города из твоих CSS-классов (.card, .pill, .badge, .btn...)
 function renderCityCard(city, products, purchasedSet, purchaseMap){
     const cityProducts = products.filter(p => p.cityId === city.id && p.active !== false);
@@ -247,6 +261,10 @@ function renderCityCard(city, products, purchasedSet, purchaseMap){
         ? hasUpdate(purchasedProduct, paidAt, lastDownloadedAt)
         : false;
     
+    const hasRubPay = full && Number(full.priceRub || 0) > 0;
+    const rubText = hasRubPay ? promoLabel(full.priceRub, full.priceRubOld) : '';
+    const rubUrl = full?.payUrl ? String(full.payUrl) : '';
+
     return `
         <div class="card" id="city-${cid}" data-city="${esc(city.id)}">
             <div class="cardHeader">
@@ -293,9 +311,25 @@ function renderCityCard(city, products, purchasedSet, purchaseMap){
                             ✅ Забрать (${esc(mini.subtitle || starsLabel(mini.priceStars))})
                         </button>` : ''
                     }
-                    
+
                     ${full ? `
-                        <button class="btn primary" data-action="BUY" data-product="${esc(full.id)}">
+                        ${hasRubPay ? `
+                            ${rubUrl ? `
+                                <a class="btn primary" href="${esc(rubUrl)}" target="_blank" rel="noopener">
+                                    Оплатить картой ${esc(rubLabel(full.priceRub))}
+                                    ${full.priceRubOld && Number(full.priceRubOld) > Number(full.priceRub || 0)
+                                        ? ` <span class="price-old">${esc(rubLabel(full.priceRubOld))}</span>`
+                                        : ''}
+                                </a>` : `
+                                <button class="btn primary disabled" disabled>
+                                    Оплатить картой ${esc(rubLabel(full.priceRub))}
+                                    ${full.priceRubOld && Number(full.priceRubOld) > Number(full.priceRub || 0)
+                                        ? ` <span class="price-old">${esc(rubLabel(full.priceRubOld))}</span>`
+                                        : ''}
+                                </button>`
+                            }
+                        ` : ''}
+                        <button class="btn ${hasRubPay ? '' : 'primary'}" data-action="BUY" data-product="${esc(full.id)}">
                             ⭐ Купить (${esc(full.subtitle || starsLabel(full.priceStars))})
                         </button>` : ''
                     }

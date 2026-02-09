@@ -23,6 +23,9 @@
             "title": "Полная версия",
             "subtitle": "199 ⭐ Stars",
             "priceStars": 199,
+            "priceRub": 990,
+            "priceRubOld": 1490,
+            "payUrl": "",
             "updatedAt": "2026-02-07T00:00:00Z",
             "file": "https://pub-88906c2943024ae0a8acd2a4942d3a0e.r2.dev/batumi-full.kmz",
             "active": true
@@ -46,6 +49,9 @@
             "title":"Полная версия",
             "subtitle":"199 ⭐ Stars",
             "priceStars":199,
+            "priceRub": 990,
+            "priceRubOld": 1490,
+            "payUrl": "",
             "updatedAt": "2026-02-07T00:00:00Z",
             "file":"https://pub-88906c2943024ae0a8acd2a4942d3a0e.r2.dev/tbilisi-full.kmz",
             "active": true
