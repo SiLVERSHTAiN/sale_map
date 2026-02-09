@@ -269,6 +269,7 @@ export function startApiServer({ port, botToken, onAction, onCryptoPaid }) {
                         data?.message ||
                         data?.error ||
                         data?.errors ||
+                        data?.result ||
                         data?.description ||
                         data;
                     return sendJson(res, 502, {
@@ -277,7 +278,11 @@ export function startApiServer({ port, botToken, onAction, onCryptoPaid }) {
                         details,
                     });
                 }
-                const payUrl = data?.link || data?.pay_url || data?.invoice_url;
+                const payUrl =
+                    data?.result?.link ||
+                    data?.link ||
+                    data?.pay_url ||
+                    data?.invoice_url;
                 if (!payUrl) {
                     return sendJson(res, 502, { ok: false, error: "crypto_no_link" });
                 }
