@@ -261,6 +261,10 @@ export function startApiServer({ port, botToken, onAction, onCryptoPaid }) {
                 });
                 const data = await resp.json().catch(() => ({}));
                 if (!resp.ok || data?.status !== "success") {
+                    console.error("CRYPTOCLOUD_CREATE_FAILED", {
+                        httpStatus: resp.status,
+                        body: data,
+                    });
                     return sendJson(res, 502, { ok: false, error: "crypto_create_failed" });
                 }
                 const payUrl = data?.link || data?.pay_url || data?.invoice_url;
