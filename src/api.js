@@ -265,7 +265,17 @@ export function startApiServer({ port, botToken, onAction, onCryptoPaid }) {
                         httpStatus: resp.status,
                         body: data,
                     });
-                    return sendJson(res, 502, { ok: false, error: "crypto_create_failed" });
+                    const details =
+                        data?.message ||
+                        data?.error ||
+                        data?.errors ||
+                        data?.description ||
+                        data;
+                    return sendJson(res, 502, {
+                        ok: false,
+                        error: "crypto_create_failed",
+                        details,
+                    });
                 }
                 const payUrl = data?.link || data?.pay_url || data?.invoice_url;
                 if (!payUrl) {

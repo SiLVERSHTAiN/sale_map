@@ -180,9 +180,12 @@ async function send(action, productId){
                 headers: { 'content-type': 'application/json' },
                 body: JSON.stringify({ initData, productId })
             });
-            const data = await res.json();
+            const data = await res.json().catch(() => ({}));
             if (!res.ok || !data?.ok || !data?.payUrl) {
-                alert('Не удалось создать счёт. Попробуйте позже.');
+                const details = typeof data?.details === 'string'
+                    ? data.details
+                    : (data?.details?.message || data?.error || '');
+                alert('Не удалось создать счёт. ' + (details || 'Попробуйте позже.'));
                 return;
             }
             try { sessionStorage.removeItem(ENTITLEMENTS_KEY); } catch(e){}
