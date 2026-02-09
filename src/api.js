@@ -230,22 +230,34 @@ export function startApiServer({ port, botToken, onAction, onCryptoPaid }) {
 
             const orderId = `${userId}:${productId}:${Date.now().toString(36)}`;
             try {
+                const availableCurrenciesRaw = process.env.CRYPTOCLOUD_AVAILABLE_CURRENCIES || "";
+                const availableCurrencies = availableCurrenciesRaw
+                    .split(",")
+                    .map((s) => s.trim())
+                    .filter(Boolean);
+
+                const payload = {
+                    shop_id: shopId,
+                    amount,
+                    currency: "USD",
+                    order_id: orderId,
+                    add_fields: {
+                        product_id: productId,
+                        user_id: String(userId),
+                    },
+                };
+
+                if (availableCurrencies.length) {
+                    payload.add_fields.available_currencies = availableCurrencies;
+                }
+
                 const resp = await fetch("https://api.cryptocloud.plus/v2/invoice/create", {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
                         Authorization: `Token ${apiKey}`,
                     },
-                    body: JSON.stringify({
-                        shop_id: shopId,
-                        amount,
-                        currency: "USDT",
-                        order_id: orderId,
-                        add_fields: {
-                            product_id: productId,
-                            user_id: String(userId),
-                        },
-                    }),
+                    body: JSON.stringify(payload),
                 });
                 const data = await resp.json().catch(() => ({}));
                 if (!resp.ok || data?.status !== "success") {
