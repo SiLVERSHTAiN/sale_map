@@ -4,7 +4,11 @@ import path from "path";
 import { Telegraf, Markup } from "telegraf";
 import { nanoid } from "nanoid";
 
-import { hasPurchaseAsync, markDownloadAsync, storePurchaseAsync } from "./storage.js";
+import {
+    hasPurchaseAsync,
+    markDownloadAsync,
+    storePurchaseAsync,
+} from "./storage.js";
 import { startApiServer } from "./api.js";
 
 // -------------------- ENV --------------------
@@ -223,6 +227,22 @@ async function handleGetFileByUser(userId, productId) {
         await markDownloadAsync(userId, product.id);
     }
     await handleHowToToUser(userId);
+}
+
+async function handleCryptoPaid({ userId, productId, invoice }) {
+    if (!userId || !productId) return;
+    if (!(await hasPurchaseAsync(userId, productId))) {
+        await storePurchaseAsync({
+            userId,
+            productId,
+            telegramPaymentChargeId: null,
+            payload: JSON.stringify({
+                provider: "cryptocloud",
+                invoice: invoice || null,
+            }),
+        });
+    }
+    await handleGetFileByUser(userId, productId);
 }
 
 async function handleBuy(ctx, productId) {
@@ -524,6 +544,7 @@ startApiServer({
     port: PORT,
     botToken: BOT_TOKEN,
     onAction: handleWebAppActionByUser,
+    onCryptoPaid: handleCryptoPaid,
 });
 process.once("SIGINT", () => bot.stop("SIGINT"));
 process.once("SIGTERM", () => bot.stop("SIGTERM"));

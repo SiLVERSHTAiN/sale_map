@@ -137,8 +137,12 @@
             if (p && p.priceRub != null) {
                 const now = Number(p.priceRub || 0);
                 const old = Number(p.priceRubOld || 0);
-                if (Number.isFinite(old) && old > now) return `${now} ₽ (вместо ${old} ₽)`;
-                return `${now} ₽`;
+                const usdt = Number(p.priceUsdt || 0);
+                const rubPart = Number.isFinite(old) && old > now
+                    ? `${now} ₽ (вместо ${old} ₽)`
+                    : `${now} ₽`;
+                const usdtPart = Number.isFinite(usdt) && usdt > 0 ? ` / ${usdt} USDT` : '';
+                return rubPart + usdtPart;
             }
             const stars = Number(p?.priceStars || 0);
             if (!Number.isFinite(stars) || stars <= 0) return 'Бесплатно';

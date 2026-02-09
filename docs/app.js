@@ -169,6 +169,33 @@ async function send(action, productId){
         return;
     }
     const initData = await waitInitData(1200);
+    if (action === 'CRYPTO'){
+        if (!API_BASE || !initData) {
+            alert('Оплата криптовалютой доступна только внутри Telegram.');
+            return;
+        }
+        try{
+            const res = await fetch(`${API_BASE}/api/crypto/invoice`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ initData, productId })
+            });
+            const data = await res.json();
+            if (!res.ok || !data?.ok || !data?.payUrl) {
+                alert('Не удалось создать счёт. Попробуйте позже.');
+                return;
+            }
+            try { sessionStorage.removeItem(ENTITLEMENTS_KEY); } catch(e){}
+            if (tg?.openLink) {
+                tg.openLink(data.payUrl);
+            } else {
+                window.location.href = data.payUrl;
+            }
+        }catch(e){
+            alert('Не удалось создать счёт. Попробуйте позже.');
+        }
+        return;
+    }
     if (API_BASE && initData) {
         try{
             await fetch(`${API_BASE}/api/action`, {
@@ -234,6 +261,12 @@ function rubLabel(priceRub){
     return `${n} ₽`;
 }
 
+function usdtLabel(priceUsdt){
+    const n = Number(priceUsdt || 0);
+    if (!Number.isFinite(n) || n <= 0) return '';
+    return `${n} USDT`;
+}
+
 function promoLabel(priceRub, priceRubOld){
     const now = Number(priceRub || 0);
     const old = Number(priceRubOld || 0);
@@ -262,6 +295,7 @@ function renderCityCard(city, products, purchasedSet, purchaseMap){
         : false;
     
     const hasRubPay = full && Number(full.priceRub || 0) > 0;
+    const hasCryptoPay = full && Number(full.priceUsdt || 0) > 0;
     const rubText = hasRubPay ? promoLabel(full.priceRub, full.priceRubOld) : '';
     const rubUrl = full?.payUrl ? String(full.payUrl) : '';
 
@@ -329,6 +363,11 @@ function renderCityCard(city, products, purchasedSet, purchaseMap){
                                 </button>`
                             }
                         ` : ''}
+                        ${hasCryptoPay ? `
+                            <button class="btn" data-action="CRYPTO" data-product="${esc(full.id)}">
+                                Оплатить криптой ${esc(usdtLabel(full.priceUsdt))}
+                            </button>` : ''
+                        }
                         <button class="btn ${hasRubPay ? '' : 'primary'}" data-action="BUY" data-product="${esc(full.id)}">
                             ⭐ Купить (${esc(full.subtitle || starsLabel(full.priceStars))})
                         </button>` : ''
