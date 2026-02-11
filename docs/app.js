@@ -559,7 +559,7 @@ function renderCityCard(city, products, purchasedSet, purchaseMap){
                 <div class="consent">
                     Нажимая «Оплатить» или «Купить», вы принимаете условия
                     <a href="./offer.html" target="_blank" rel="noopener">оферты</a>
-                    и подтверждаете, что ознакомились с условиями возврата цифрового контента.
+                    и правила возврата цифрового контента.
                 </div>
             ` : ''}
         

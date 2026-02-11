@@ -450,13 +450,13 @@ a.btn{
 
 .consent{
   margin-top: 10px;
-  padding: 10px 12px;
+  padding: 8px 10px;
   border-radius: 12px;
-  border: 1px solid rgba(120,140,180,.12);
-  background: rgba(120,150,210,.08);
-  color: rgba(214,224,242,.92);
-  font-size: 12px;
-  line-height: 1.35;
+  border: 1px solid rgba(120,140,180,.1);
+  background: rgba(120,150,210,.06);
+  color: rgba(220,230,248,.92);
+  font-size: 11px;
+  line-height: 1.25;
 }
 
 .consent a{
