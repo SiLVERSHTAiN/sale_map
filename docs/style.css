@@ -454,13 +454,13 @@ a.btn{
   border-radius: 12px;
   border: 1px solid rgba(120,140,180,.1);
   background: rgba(120,150,210,.06);
-  color: rgba(220,230,248,.92);
+  color: rgba(25,32,42,.9);
   font-size: 11px;
   line-height: 1.25;
 }
 
 .consent a{
-  color: #e6efff;
+  color: #1f3b7a;
   text-decoration: underline;
 }
 
