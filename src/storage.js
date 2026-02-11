@@ -101,6 +101,16 @@ export function storePurchase({ userId, productId, telegramPaymentChargeId, payl
     }
 }
 
+export function removePurchase({ userId, productId }) {
+    if (!DATABASE_URL) {
+        const db = readDb();
+        const key = String(userId);
+        if (!db.users?.[key]?.purchases?.[productId]) return;
+        delete db.users[key].purchases[productId];
+        writeDb(db);
+    }
+}
+
 export async function hasPurchaseAsync(userId, productId) {
     const p = getPool();
     if (!p) return hasPurchase(userId, productId);
@@ -144,6 +154,16 @@ export async function storePurchaseAsync({ userId, productId, telegramPaymentCha
             payload = EXCLUDED.payload
         `,
         [Number(userId), String(productId), telegramPaymentChargeId || null, payload || null]
+    );
+}
+
+export async function removePurchaseAsync(userId, productId) {
+    const p = getPool();
+    if (!p) return removePurchase({ userId, productId });
+    await ensurePgSchema();
+    await p.query(
+        "DELETE FROM purchases WHERE user_id = $1 AND product_id = $2",
+        [Number(userId), String(productId)]
     );
 }
 

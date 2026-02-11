@@ -7,6 +7,7 @@ import { nanoid } from "nanoid";
 import {
     hasPurchaseAsync,
     markDownloadAsync,
+    removePurchaseAsync,
     storePurchaseAsync,
 } from "./storage.js";
 import { startApiServer } from "./api.js";
@@ -259,6 +260,18 @@ async function handleYookassaPaid({ userId, productId, payment }) {
         });
     }
     await handleGetFileByUser(userId, productId);
+}
+
+async function handleYookassaRefund({ userId, productId, isFullRefund }) {
+    if (!userId || !productId) return;
+    if (isFullRefund) {
+        await removePurchaseAsync(userId, productId);
+        await bot.telegram.sendMessage(
+            userId,
+            "ℹ️ Оплата возвращена. Доступ к файлу отключён. Если нужна помощь — /support",
+            withWebAppKeyboard()
+        );
+    }
 }
 
 async function handleBuy(ctx, productId) {
@@ -562,6 +575,7 @@ startApiServer({
     onAction: handleWebAppActionByUser,
     onCryptoPaid: handleCryptoPaid,
     onYookassaPaid: handleYookassaPaid,
+    onYookassaRefund: handleYookassaRefund,
 });
 process.once("SIGINT", () => bot.stop("SIGINT"));
 process.once("SIGTERM", () => bot.stop("SIGTERM"));

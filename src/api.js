@@ -149,6 +149,23 @@ function resolveSiteUrl() {
     }
 }
 
+async function fetchYookassaPayment(paymentId, shopId, secretKey) {
+    if (!paymentId || !shopId || !secretKey) return null;
+    const auth = Buffer.from(`${shopId}:${secretKey}`).toString("base64");
+    try {
+        const resp = await fetch(`https://api.yookassa.ru/v3/payments/${paymentId}`, {
+            method: "GET",
+            headers: {
+                Authorization: `Basic ${auth}`,
+            },
+        });
+        if (!resp.ok) return null;
+        return await resp.json().catch(() => null);
+    } catch {
+        return null;
+    }
+}
+
 function readCatalog() {
     const file = abs(process.env.CATALOG_PATH || "./docs/products.json");
     if (!fs.existsSync(file)) return null;
@@ -159,7 +176,14 @@ function readCatalog() {
     }
 }
 
-export function startApiServer({ port, botToken, onAction, onCryptoPaid, onYookassaPaid }) {
+export function startApiServer({
+    port,
+    botToken,
+    onAction,
+    onCryptoPaid,
+    onYookassaPaid,
+    onYookassaRefund,
+}) {
     const server = http.createServer(async (req, res) => {
         setCors(res);
         if (req.method === "OPTIONS") {
@@ -416,29 +440,71 @@ export function startApiServer({ port, botToken, onAction, onCryptoPaid, onYooka
                 return sendJson(res, 400, { ok: false, error: "invalid_payload" });
             }
 
-            if (body.event !== "payment.succeeded") {
-                return sendJson(res, 200, { ok: true });
-            }
-
-            const payment = body.object || {};
-            if (payment.status && payment.status !== "succeeded") {
-                return sendJson(res, 200, { ok: true });
-            }
-
-            const metadata = payment.metadata || {};
-            const userId = Number(metadata.user_id);
-            const productId = metadata.product_id;
-
-            if (!Number.isFinite(userId) || !productId) {
-                return sendJson(res, 400, { ok: false, error: "order_metadata_missing" });
-            }
-
-            if (typeof onYookassaPaid === "function") {
-                try {
-                    await onYookassaPaid({ userId, productId, payment });
-                } catch {
-                    return sendJson(res, 500, { ok: false, error: "yookassa_handler_failed" });
+            if (body.event === "payment.succeeded") {
+                const payment = body.object || {};
+                if (payment.status && payment.status !== "succeeded") {
+                    return sendJson(res, 200, { ok: true });
                 }
+
+                const metadata = payment.metadata || {};
+                const userId = Number(metadata.user_id);
+                const productId = metadata.product_id;
+
+                if (!Number.isFinite(userId) || !productId) {
+                    return sendJson(res, 400, { ok: false, error: "order_metadata_missing" });
+                }
+
+                if (typeof onYookassaPaid === "function") {
+                    try {
+                        await onYookassaPaid({ userId, productId, payment });
+                    } catch {
+                        return sendJson(res, 500, { ok: false, error: "yookassa_handler_failed" });
+                    }
+                }
+
+                return sendJson(res, 200, { ok: true });
+            }
+
+            if (body.event === "refund.succeeded") {
+                const refund = body.object || {};
+                const paymentId = refund?.payment_id || refund?.payment?.id;
+                if (!paymentId) {
+                    return sendJson(res, 400, { ok: false, error: "refund_payment_missing" });
+                }
+
+                const shopId = process.env.YOOKASSA_SHOP_ID;
+                const secretKey = process.env.YOOKASSA_SECRET_KEY;
+                const payment = await fetchYookassaPayment(paymentId, shopId, secretKey);
+                const metadata = payment?.metadata || {};
+                const userId = Number(metadata.user_id);
+                const productId = metadata.product_id;
+
+                if (!Number.isFinite(userId) || !productId) {
+                    return sendJson(res, 400, { ok: false, error: "refund_metadata_missing" });
+                }
+
+                const refundAmount = Number(refund?.amount?.value || 0);
+                const paymentAmount = Number(payment?.amount?.value || 0);
+                const isFullRefund =
+                    Number.isFinite(refundAmount) &&
+                    Number.isFinite(paymentAmount) &&
+                    refundAmount >= paymentAmount;
+
+                if (typeof onYookassaRefund === "function") {
+                    try {
+                        await onYookassaRefund({
+                            userId,
+                            productId,
+                            refund,
+                            payment,
+                            isFullRefund,
+                        });
+                    } catch {
+                        return sendJson(res, 500, { ok: false, error: "yookassa_refund_failed" });
+                    }
+                }
+
+                return sendJson(res, 200, { ok: true });
             }
 
             return sendJson(res, 200, { ok: true });
