@@ -27,6 +27,10 @@ function applyTelegramTheme(){
         css.setProperty('--shadow','0 18px 40px rgba(15, 23, 42, .10)');
         css.setProperty('--skeleton','rgba(15, 23, 42, .08)');
         css.setProperty('--skeletonShine','rgba(15, 23, 42, .18)');
+        css.setProperty('--consent-bg','rgba(15, 23, 42, .04)');
+        css.setProperty('--consent-border','rgba(15, 23, 42, .08)');
+        css.setProperty('--consent-text','#1f2937');
+        css.setProperty('--consent-link','#1f3b7a');
     } else {
       // dark — базовые значения уже в css, можно не трогать
     }
@@ -541,8 +545,8 @@ function renderCityCard(city, products, purchasedSet, purchaseMap){
                             `}
                         ` : ''}
                         ${hasCryptoPay ? `
-                            <button class="btn" data-action="CRYPTO" data-product="${esc(full.id)}">
-                                Оплатить криптой ${esc(usdtLabel(full.priceUsdt))}
+                            <button class="btn crypto" data-action="CRYPTO" data-product="${esc(full.id)}">
+                                Оплата в USDT
                             </button>` : ''
                         }
                         <button class="btn ${hasRubPay ? '' : 'primary'}" data-action="BUY" data-product="${esc(full.id)}">
