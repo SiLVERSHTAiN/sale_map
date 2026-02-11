@@ -356,7 +356,7 @@ export function startApiServer({ port, botToken, onAction, onCryptoPaid, onYooka
                 capture: true,
                 confirmation: {
                     type: "redirect",
-                    return_url: `${siteUrl}/successful-payment`,
+                    return_url: `${siteUrl}/payment-result`,
                 },
                 description,
                 metadata: {
