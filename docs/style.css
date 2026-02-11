@@ -115,8 +115,8 @@ a.chip:hover{
 }
 
 .info-tabs{
-  display:flex;
-  flex-wrap:wrap;
+  display:grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   margin: 6px 0 12px;
 }
@@ -127,6 +127,8 @@ a.chip:hover{
   background: rgba(255,255,255,.06);
   color: var(--muted);
   cursor: pointer;
+  justify-content: center;
+  width: 100%;
 }
 
 .info-tab:hover{
