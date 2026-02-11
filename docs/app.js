@@ -555,6 +555,13 @@ function renderCityCard(city, products, purchasedSet, purchaseMap){
                     </button>
                 `}
             </div>
+            ${!hasPurchase && full && (Number(full.priceStars || 0) > 0 || hasRubPay || hasCryptoPay) ? `
+                <div class="consent">
+                    Нажимая «Оплатить» или «Купить», вы принимаете условия
+                    <a href="./offer.html" target="_blank" rel="noopener">оферты</a>
+                    и подтверждаете, что ознакомились с условиями возврата цифрового контента.
+                </div>
+            ` : ''}
         
             <div class="hint">
                 <div class="icon">ℹ️</div>

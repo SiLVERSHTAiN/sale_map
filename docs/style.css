@@ -448,6 +448,22 @@ a.btn{
   text-decoration: line-through;
 }
 
+.consent{
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(120,140,180,.18);
+  background: rgba(16,24,45,.45);
+  color: rgba(200,210,226,.92);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.consent a{
+  color: #dbe6ff;
+  text-decoration: underline;
+}
+
 .hint{
   margin-top: 12px;
   padding: 12px 12px;
