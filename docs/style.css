@@ -114,6 +114,54 @@ a.chip:hover{
   gap: 12px;
 }
 
+.info-grid{
+  display:grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin: 6px 0 14px;
+}
+
+.info-card{
+  padding: 14px 16px;
+}
+
+.info-title{
+  margin: 0 0 6px;
+  font-size: 15px;
+  letter-spacing: -.2px;
+}
+
+.info-text{
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.info-text + .info-text{
+  margin-top: 8px;
+}
+
+.info-list{
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.info-list li{
+  margin: 0 0 6px;
+}
+
+.info-list li:last-child{
+  margin-bottom: 0;
+}
+
+.info-muted{
+  display:block;
+  margin-top: 6px;
+  color: var(--muted);
+}
+
 .skeleton-card{
   pointer-events: none;
 }
