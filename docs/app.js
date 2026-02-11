@@ -546,7 +546,7 @@ function renderCityCard(city, products, purchasedSet, purchaseMap){
                         ` : ''}
                         ${hasCryptoPay ? `
                             <button class="btn crypto" data-action="CRYPTO" data-product="${esc(full.id)}">
-                                Оплата в USDT
+                                Оплатить в USDT
                             </button>` : ''
                         }
                         <button class="btn ${hasRubPay ? '' : 'primary'}" data-action="BUY" data-product="${esc(full.id)}">
