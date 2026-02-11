@@ -4,6 +4,7 @@ const APP_CONFIG = window.APP_CONFIG || {};
 const API_BASE = String(APP_CONFIG.API_BASE || "").replace(/\/$/, "");
 const ENTITLEMENTS_KEY = 'entitlements.v2';
 const ENTITLEMENTS_TTL = 10 * 60 * 1000;
+const PENDING_PAYMENT_KEY = 'pending_payment.v1';
 
 function applyTelegramTheme(){
     if (!isTg) return;
@@ -105,9 +106,11 @@ function writeEntitlementsCache(data){
     }catch(e){}
 }
 
-async function getEntitlements({ allowFetch = true } = {}){
-    const cached = readEntitlementsCache();
-    if (cached) return cached;
+async function getEntitlements({ allowFetch = true, force = false } = {}){
+    if (!force) {
+        const cached = readEntitlementsCache();
+        if (cached) return cached;
+    }
     if (!allowFetch) return null;
     const fresh = await loadEntitlements();
     if (fresh) writeEntitlementsCache(fresh);
@@ -241,6 +244,55 @@ function setupInfoPanel(){
     });
 }
 
+function setPendingPayment(productId){
+    if (!productId) return;
+    try{
+        sessionStorage.setItem(PENDING_PAYMENT_KEY, JSON.stringify({
+            productId,
+            ts: Date.now()
+        }));
+    }catch(e){}
+}
+
+function readPendingPayment(){
+    try{
+        const raw = sessionStorage.getItem(PENDING_PAYMENT_KEY);
+        if (!raw) return null;
+        const data = JSON.parse(raw);
+        if (!data?.productId) return null;
+        if (Date.now() - Number(data.ts || 0) > 30 * 60 * 1000) {
+            sessionStorage.removeItem(PENDING_PAYMENT_KEY);
+            return null;
+        }
+        return data;
+    }catch(e){
+        return null;
+    }
+}
+
+function clearPendingPayment(){
+    try{ sessionStorage.removeItem(PENDING_PAYMENT_KEY); }catch(e){}
+}
+
+function setupPendingAutoClose(){
+    if (!isTg) return;
+    async function check(){
+        const pending = readPendingPayment();
+        if (!pending) return;
+        const ent = await getEntitlements({ allowFetch: true, force: true });
+        const purchases = Array.isArray(ent?.purchases) ? ent.purchases : [];
+        if (purchases.map(String).includes(String(pending.productId))) {
+            clearPendingPayment();
+            setTimeout(() => { try { tg.close(); } catch(e){} }, 600);
+        }
+    }
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') check();
+    });
+    window.addEventListener('focus', check);
+    check();
+}
+
 // ВАЖНО: теперь send принимает (action, productId)
 async function send(action, productId){
     const payload = JSON.stringify({ action, productId });
@@ -269,6 +321,7 @@ async function send(action, productId){
                 return;
             }
             try { sessionStorage.removeItem(ENTITLEMENTS_KEY); } catch(e){}
+            setPendingPayment(productId);
             if (tg?.openLink) {
                 tg.openLink(data.payUrl);
             } else {
@@ -299,6 +352,7 @@ async function send(action, productId){
                 return;
             }
             try { sessionStorage.removeItem(ENTITLEMENTS_KEY); } catch(e){}
+            setPendingPayment(productId);
             if (tg?.openLink) {
                 tg.openLink(data.confirmationUrl);
             } else {
@@ -669,6 +723,7 @@ async function init(){
     setStoreLinks(document);
     setupFloatingAction();
     setupInfoPanel();
+    setupPendingAutoClose();
     const el = document.getElementById('catalog');
     const page = document.body?.dataset?.page || 'home';
     if (el) showSkeleton(el, page);
