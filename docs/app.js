@@ -279,6 +279,36 @@ async function send(action, productId){
         }
         return;
     }
+    if (action === 'CARD'){
+        if (!API_BASE || !initData) {
+            alert('Оплата картой доступна только внутри Telegram.');
+            return;
+        }
+        try{
+            const res = await fetch(`${API_BASE}/api/yookassa/create`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ initData, productId })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data?.ok || !data?.confirmationUrl) {
+                const details = typeof data?.details === 'string'
+                    ? data.details
+                    : (data?.details?.description || data?.error || '');
+                alert('Не удалось создать платёж. ' + (details || 'Попробуйте позже.'));
+                return;
+            }
+            try { sessionStorage.removeItem(ENTITLEMENTS_KEY); } catch(e){}
+            if (tg?.openLink) {
+                tg.openLink(data.confirmationUrl);
+            } else {
+                window.location.href = data.confirmationUrl;
+            }
+        }catch(e){
+            alert('Не удалось создать платёж. Попробуйте позже.');
+        }
+        return;
+    }
     if (API_BASE && initData) {
         try{
             await fetch(`${API_BASE}/api/action`, {
@@ -381,6 +411,8 @@ function renderCityCard(city, products, purchasedSet, purchaseMap){
     const hasCryptoPay = full && Number(full.priceUsdt || 0) > 0;
     const rubText = hasRubPay ? promoLabel(full.priceRub, full.priceRubOld) : '';
     const rubUrl = full?.payUrl ? String(full.payUrl) : '';
+    const useCardApi = Boolean(API_BASE) && isTg;
+    const showCardLink = !useCardApi && rubUrl;
 
     return `
         <div class="card" id="city-${cid}" data-city="${esc(city.id)}">
@@ -431,20 +463,28 @@ function renderCityCard(city, products, purchasedSet, purchaseMap){
 
                     ${full ? `
                         ${hasRubPay ? `
-                            ${rubUrl ? `
-                                <a class="btn primary" href="${esc(rubUrl)}" target="_blank" rel="noopener">
+                            ${useCardApi ? `
+                                <button class="btn primary" data-action="CARD" data-product="${esc(full.id)}">
                                     Оплатить картой ${esc(rubLabel(full.priceRub))}
                                     ${full.priceRubOld && Number(full.priceRubOld) > Number(full.priceRub || 0)
                                         ? ` <span class="price-old">${esc(rubLabel(full.priceRubOld))}</span>`
                                         : ''}
-                                </a>` : `
-                                <button class="btn primary disabled" disabled>
-                                    Оплатить картой ${esc(rubLabel(full.priceRub))}
-                                    ${full.priceRubOld && Number(full.priceRubOld) > Number(full.priceRub || 0)
-                                        ? ` <span class="price-old">${esc(rubLabel(full.priceRubOld))}</span>`
-                                        : ''}
-                                </button>`
-                            }
+                                </button>` : `
+                                ${showCardLink ? `
+                                    <a class="btn primary" href="${esc(rubUrl)}" target="_blank" rel="noopener">
+                                        Оплатить картой ${esc(rubLabel(full.priceRub))}
+                                        ${full.priceRubOld && Number(full.priceRubOld) > Number(full.priceRub || 0)
+                                            ? ` <span class="price-old">${esc(rubLabel(full.priceRubOld))}</span>`
+                                            : ''}
+                                    </a>` : `
+                                    <button class="btn primary disabled" disabled>
+                                        Оплатить картой ${esc(rubLabel(full.priceRub))}
+                                        ${full.priceRubOld && Number(full.priceRubOld) > Number(full.priceRub || 0)
+                                            ? ` <span class="price-old">${esc(rubLabel(full.priceRubOld))}</span>`
+                                            : ''}
+                                    </button>`
+                                }
+                            `}
                         ` : ''}
                         ${hasCryptoPay ? `
                             <button class="btn" data-action="CRYPTO" data-product="${esc(full.id)}">

@@ -139,6 +139,16 @@ function abs(p) {
     return path.resolve(process.cwd(), p);
 }
 
+function resolveSiteUrl() {
+    const raw = process.env.SITE_URL || process.env.WEBAPP_URL || "";
+    if (!raw) return "";
+    try {
+        return new URL(raw).origin;
+    } catch {
+        return "";
+    }
+}
+
 function readCatalog() {
     const file = abs(process.env.CATALOG_PATH || "./docs/products.json");
     if (!fs.existsSync(file)) return null;
@@ -149,7 +159,7 @@ function readCatalog() {
     }
 }
 
-export function startApiServer({ port, botToken, onAction, onCryptoPaid }) {
+export function startApiServer({ port, botToken, onAction, onCryptoPaid, onYookassaPaid }) {
     const server = http.createServer(async (req, res) => {
         setCors(res);
         if (req.method === "OPTIONS") {
@@ -290,6 +300,148 @@ export function startApiServer({ port, botToken, onAction, onCryptoPaid }) {
             } catch {
                 return sendJson(res, 502, { ok: false, error: "crypto_request_failed" });
             }
+        }
+
+        if (url.pathname === "/api/yookassa/create") {
+            if (req.method !== "POST" || !isJsonRequest) {
+                return sendJson(res, 405, { ok: false, error: "method_not_allowed" });
+            }
+
+            const body = await readJsonBody(req);
+            const initData = body?.initData;
+            const productId = body?.productId;
+
+            if (!initData || !productId) {
+                return sendJson(res, 400, { ok: false, error: "initData_or_product_missing" });
+            }
+
+            const verified = verifyInitData(initData, botToken);
+            if (!verified) {
+                return sendJson(res, 401, { ok: false, error: "invalid_init_data" });
+            }
+
+            const userId = parseUserId(verified);
+            if (!userId) {
+                return sendJson(res, 400, { ok: false, error: "user_id_missing" });
+            }
+
+            const catalog = readCatalog();
+            const products = Array.isArray(catalog?.products) ? catalog.products : [];
+            const cities = Array.isArray(catalog?.cities) ? catalog.cities : [];
+            const product = products.find((p) => p && p.id === productId && p.active !== false);
+            const amountValue = Number(product?.priceRub || 0);
+
+            if (!product || !Number.isFinite(amountValue) || amountValue <= 0) {
+                return sendJson(res, 400, { ok: false, error: "invalid_product" });
+            }
+
+            const shopId = process.env.YOOKASSA_SHOP_ID;
+            const secretKey = process.env.YOOKASSA_SECRET_KEY;
+            if (!shopId || !secretKey) {
+                return sendJson(res, 500, { ok: false, error: "yookassa_config_missing" });
+            }
+
+            const siteUrl = resolveSiteUrl();
+            if (!siteUrl) {
+                return sendJson(res, 500, { ok: false, error: "site_url_missing" });
+            }
+
+            const city = cities.find((c) => c && String(c.id) === String(product.cityId)) || {};
+            const description =
+                product?.description ||
+                `${city?.name || "Город"} — ${product?.title || "Путеводитель"}. Файл .kmz для Organic Maps / MAPS.ME.`;
+
+            const payload = {
+                amount: { value: amountValue.toFixed(2), currency: "RUB" },
+                capture: true,
+                confirmation: {
+                    type: "redirect",
+                    return_url: `${siteUrl}/successful-payment`,
+                },
+                description,
+                metadata: {
+                    product_id: productId,
+                    user_id: String(userId),
+                },
+            };
+
+            if (String(process.env.YOOKASSA_TEST_MODE || "").toLowerCase() === "true") {
+                payload.test = true;
+            }
+
+            const auth = Buffer.from(`${shopId}:${secretKey}`).toString("base64");
+            const idemKey = crypto.randomUUID();
+
+            try {
+                const resp = await fetch("https://api.yookassa.ru/v3/payments", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Idempotence-Key": idemKey,
+                        Authorization: `Basic ${auth}`,
+                    },
+                    body: JSON.stringify(payload),
+                });
+                const data = await resp.json().catch(() => ({}));
+                if (!resp.ok || data?.type === "error") {
+                    console.error("YOOKASSA_CREATE_FAILED", {
+                        httpStatus: resp.status,
+                        body: data,
+                    });
+                    return sendJson(res, 502, {
+                        ok: false,
+                        error: "yookassa_create_failed",
+                        details: data,
+                    });
+                }
+
+                const confirmationUrl = data?.confirmation?.confirmation_url;
+                if (!confirmationUrl) {
+                    return sendJson(res, 502, { ok: false, error: "yookassa_no_link" });
+                }
+                return sendJson(res, 200, {
+                    ok: true,
+                    confirmationUrl,
+                    paymentId: data?.id || null,
+                });
+            } catch {
+                return sendJson(res, 502, { ok: false, error: "yookassa_request_failed" });
+            }
+        }
+
+        if (url.pathname === "/api/yookassa/webhook") {
+            const raw = await readRawBody(req);
+            const body = safeJsonParse(raw);
+            if (!body || !body?.event || !body?.object) {
+                return sendJson(res, 400, { ok: false, error: "invalid_payload" });
+            }
+
+            if (body.event !== "payment.succeeded") {
+                return sendJson(res, 200, { ok: true });
+            }
+
+            const payment = body.object || {};
+            if (payment.status && payment.status !== "succeeded") {
+                return sendJson(res, 200, { ok: true });
+            }
+
+            const metadata = payment.metadata || {};
+            const userId = Number(metadata.user_id);
+            const productId = metadata.product_id;
+
+            if (!Number.isFinite(userId) || !productId) {
+                return sendJson(res, 400, { ok: false, error: "order_metadata_missing" });
+            }
+
+            if (typeof onYookassaPaid === "function") {
+                try {
+                    await onYookassaPaid({ userId, productId, payment });
+                } catch {
+                    return sendJson(res, 500, { ok: false, error: "yookassa_handler_failed" });
+                }
+            }
+
+            return sendJson(res, 200, { ok: true });
         }
 
         if (url.pathname === "/api/crypto/postback") {

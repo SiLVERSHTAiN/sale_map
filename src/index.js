@@ -245,6 +245,22 @@ async function handleCryptoPaid({ userId, productId, invoice }) {
     await handleGetFileByUser(userId, productId);
 }
 
+async function handleYookassaPaid({ userId, productId, payment }) {
+    if (!userId || !productId) return;
+    if (!(await hasPurchaseAsync(userId, productId))) {
+        await storePurchaseAsync({
+            userId,
+            productId,
+            telegramPaymentChargeId: null,
+            payload: JSON.stringify({
+                provider: "yookassa",
+                payment: payment || null,
+            }),
+        });
+    }
+    await handleGetFileByUser(userId, productId);
+}
+
 async function handleBuy(ctx, productId) {
     const { productsById, citiesById } = getCatalog();
     const product = productsById[productId];
@@ -545,6 +561,7 @@ startApiServer({
     botToken: BOT_TOKEN,
     onAction: handleWebAppActionByUser,
     onCryptoPaid: handleCryptoPaid,
+    onYookassaPaid: handleYookassaPaid,
 });
 process.once("SIGINT", () => bot.stop("SIGINT"));
 process.once("SIGTERM", () => bot.stop("SIGTERM"));
