@@ -114,52 +114,121 @@ a.chip:hover{
   gap: 12px;
 }
 
-.info-grid{
-  display:grid;
-  grid-template-columns: 1fr;
+.info-tabs{
+  display:flex;
+  flex-wrap:wrap;
+  gap: 8px;
+  margin: 6px 0 12px;
+}
+
+.info-tab{
+  appearance: none;
+  border:1px solid var(--stroke);
+  background: rgba(255,255,255,.06);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.info-tab:hover{
+  color: var(--text);
+}
+
+.info-tab.is-active{
+  border-color: rgba(56,189,248,.35);
+  color: var(--text);
+  box-shadow: 0 10px 22px rgba(56,189,248,.12);
+}
+
+.info-panel{
+  position: fixed;
+  inset: 0;
+  display:flex;
+  align-items:flex-end;
+  justify-content:center;
+  padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+  background: rgba(2,6,23,.45);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s ease;
+  z-index: 30;
+}
+
+.info-panel.is-open{
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.info-sheet{
+  width: 100%;
+  max-width: 640px;
+  background: var(--card);
+  border:1px solid var(--stroke);
+  border-radius: 18px 18px 14px 14px;
+  box-shadow: var(--shadow);
+  transform: translateY(16px);
+  transition: transform .2s ease;
+  padding: 14px 16px 16px;
+}
+
+.info-panel.is-open .info-sheet{
+  transform: translateY(0);
+}
+
+.info-sheet-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
   gap: 12px;
-  margin: 6px 0 14px;
+  margin-bottom: 8px;
 }
 
-.info-card{
-  padding: 14px 16px;
-}
-
-.info-title{
-  margin: 0 0 6px;
+.info-sheet-title{
   font-size: 15px;
+  font-weight: 700;
   letter-spacing: -.2px;
 }
 
-.info-text{
-  margin: 0;
+.info-close{
+  appearance: none;
+  border:1px solid var(--stroke);
+  background: rgba(255,255,255,.06);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.info-sheet-body{
   color: var(--muted);
   font-size: 13px;
 }
 
-.info-text + .info-text{
-  margin-top: 8px;
+.info-sheet-body p{
+  margin: 0 0 8px;
 }
 
-.info-list{
-  margin: 0;
-  padding-left: 18px;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.info-list li{
-  margin: 0 0 6px;
-}
-
-.info-list li:last-child{
+.info-sheet-body p:last-child{
   margin-bottom: 0;
 }
 
-.info-muted{
-  display:block;
-  margin-top: 6px;
-  color: var(--muted);
+.info-sheet-body ul{
+  margin: 0;
+  padding-left: 18px;
+}
+
+.info-sheet-body li{
+  margin: 0 0 6px;
+}
+
+.info-sheet-body li:last-child{
+  margin-bottom: 0;
+}
+
+body.info-open .fab{
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(8px);
 }
 
 .skeleton-card{

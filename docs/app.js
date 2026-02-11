@@ -161,6 +161,86 @@ function haptic(type='impact', style='light'){
     }catch(e){}
 }
 
+function setupInfoPanel(){
+    const panel = document.getElementById('info-panel');
+    if (!panel) return;
+    const titleEl = document.getElementById('info-panel-title');
+    const bodyEl = document.getElementById('info-panel-body');
+    const tabs = Array.from(document.querySelectorAll('.info-tab'));
+    const closeBtn = panel.querySelector('.info-close');
+    let activeKey = null;
+
+    const content = {
+        about: {
+            title: 'О сервисе',
+            body: `
+                <p>Sale Maps — цифровые наборы точек (.kmz) для Organic Maps / MAPS.ME по городам.</p>
+                <p>Авторская подборка лучших заведений для комфортного отдыха и прогулок.</p>
+                <p>После оплаты файл приходит в этот чат.</p>
+            `
+        },
+        how: {
+            title: 'Как работает',
+            body: `
+                <ul>
+                    <li>Выберите город и версию.</li>
+                    <li>Оплатите удобным способом.</li>
+                    <li>Получите .kmz и импортируйте в приложение.</li>
+                </ul>
+            `
+        },
+        support: {
+            title: 'Поддержка',
+            body: `
+                <p>Email: <a href="mailto:silvershtain@mail.ru">silvershtain@mail.ru</a></p>
+                <p>Ответ в течение 24 часов.</p>
+                <p>Оферта и реквизиты — <a href="./offer.html">смотреть</a>.</p>
+            `
+        }
+    };
+
+    function openPanel(key){
+        const item = content[key];
+        if (!item) return;
+        activeKey = key;
+        if (titleEl) titleEl.textContent = item.title;
+        if (bodyEl) bodyEl.innerHTML = item.body;
+        panel.classList.add('is-open');
+        document.body.classList.add('info-open');
+        panel.setAttribute('aria-hidden', 'false');
+        tabs.forEach(btn => {
+            btn.classList.toggle('is-active', btn.dataset.info === key);
+        });
+    }
+
+    function closePanel(){
+        activeKey = null;
+        panel.classList.remove('is-open');
+        document.body.classList.remove('info-open');
+        panel.setAttribute('aria-hidden', 'true');
+        tabs.forEach(btn => btn.classList.remove('is-active'));
+    }
+
+    tabs.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const key = btn.dataset.info;
+            if (panel.classList.contains('is-open') && activeKey === key) {
+                closePanel();
+                return;
+            }
+            openPanel(key);
+        });
+    });
+
+    if (closeBtn) closeBtn.addEventListener('click', closePanel);
+    panel.addEventListener('click', (e) => {
+        if (e.target === panel) closePanel();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closePanel();
+    });
+}
+
 // ВАЖНО: теперь send принимает (action, productId)
 async function send(action, productId){
     const payload = JSON.stringify({ action, productId });
@@ -548,6 +628,7 @@ async function init(){
     applyTelegramTheme();
     setStoreLinks(document);
     setupFloatingAction();
+    setupInfoPanel();
     const el = document.getElementById('catalog');
     const page = document.body?.dataset?.page || 'home';
     if (el) showSkeleton(el, page);

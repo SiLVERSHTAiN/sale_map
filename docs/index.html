@@ -14,38 +14,16 @@
             <div class="brand">
                 <h1>Sale Maps</h1>
                 <p>
-                    Я собрал готовые места на карте: еда, виды, прогулки и еще много полезного
+                    Авторская подборка лучших заведений для комфортного отдыха и прогулок
                 </p>
             </div>
             <a class="chip" href="./catalog.html">🗺️ Каталог</a>
         </div>
 
-        <div class="info-grid">
-            <div class="card info-card">
-                <h2 class="info-title">О сервисе</h2>
-                <p class="info-text">
-                    Sale Maps — цифровые наборы точек (.kmz) для Organic Maps / MAPS.ME по городам.
-                    После оплаты файл приходит в этот чат.
-                </p>
-            </div>
-            <div class="card info-card">
-                <h2 class="info-title">Как это работает</h2>
-                <ul class="info-list">
-                    <li>Выберите город и версию.</li>
-                    <li>Оплатите удобным способом.</li>
-                    <li>Получите .kmz и импортируйте в приложение.</li>
-                </ul>
-            </div>
-            <div class="card info-card">
-                <h2 class="info-title">Поддержка</h2>
-                <p class="info-text">
-                    Email: silvershtain@mail.ru
-                    <span class="info-muted">Ответ в течение 24 часов.</span>
-                </p>
-                <p class="info-text">
-                    Оферта и реквизиты доступны по ссылке внизу страницы.
-                </p>
-            </div>
+        <div class="info-tabs" role="tablist" aria-label="Информация">
+            <button class="chip info-tab" type="button" data-info="about">ℹ️ О сервисе</button>
+            <button class="chip info-tab" type="button" data-info="how">⚙️ Как работает</button>
+            <button class="chip info-tab" type="button" data-info="support">🆘 Поддержка</button>
         </div>
 
         <div id="catalog" class="grid"></div>
@@ -56,6 +34,16 @@
     </div>
 
     <a class="chip fab" id="fab-action" href="./catalog.html">🗺️ Каталог</a>
+
+    <div class="info-panel" id="info-panel" aria-hidden="true">
+        <div class="info-sheet">
+            <div class="info-sheet-head">
+                <div class="info-sheet-title" id="info-panel-title">Информация</div>
+                <button class="info-close" type="button" aria-label="Закрыть">✕</button>
+            </div>
+            <div class="info-sheet-body" id="info-panel-body"></div>
+        </div>
+    </div>
 
     <script src="./config.js"></script>
     <script src="./app.js" defer></script>
