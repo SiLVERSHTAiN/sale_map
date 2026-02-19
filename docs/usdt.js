@@ -155,7 +155,11 @@ async function submitRequest(productId){
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data?.ok) {
-            const details = typeof data?.error === 'string' ? data.error : 'Попробуйте позже.';
+            const details =
+                (typeof data?.error === 'string' && data.error) ||
+                (typeof data?.details === 'string' && data.details) ||
+                (typeof data?.message === 'string' && data.message) ||
+                `HTTP ${res.status}`;
             setNote(`Не удалось отправить заявку. ${details}`, false);
             return;
         }
@@ -167,7 +171,8 @@ async function submitRequest(productId){
         showSuccessModal();
         try { tg.HapticFeedback?.notificationOccurred('success'); } catch(e){}
     }catch(e){
-        setNote('Не удалось отправить заявку. Попробуйте позже.', false);
+        const details = e?.message ? `Ошибка сети: ${e.message}` : 'Попробуйте позже.';
+        setNote(`Не удалось отправить заявку. ${details}`, false);
     }
 }
 
