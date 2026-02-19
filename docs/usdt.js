@@ -127,10 +127,44 @@ function copyText(text){
     try { return document.execCommand('copy'); } catch { return false; }
 }
 
+function normalizeTronTxid(input){
+    const raw = String(input || '').trim();
+    if (!raw) return null;
+
+    if (/^[a-fA-F0-9]{64}$/.test(raw)) {
+        return raw.toLowerCase();
+    }
+
+    try {
+        const u = new URL(raw);
+        const byParam =
+            u.searchParams.get('txid') ||
+            u.searchParams.get('hash') ||
+            u.searchParams.get('transaction');
+        if (byParam && /^[a-fA-F0-9]{64}$/.test(byParam)) {
+            return byParam.toLowerCase();
+        }
+        const chunks = [u.pathname, u.hash, u.search];
+        for (const chunk of chunks) {
+            const m = String(chunk || '').match(/[a-fA-F0-9]{64}/);
+            if (m) return m[0].toLowerCase();
+        }
+    } catch {}
+
+    const m = raw.match(/[a-fA-F0-9]{64}/);
+    if (m) return m[0].toLowerCase();
+    return null;
+}
+
 async function submitRequest(productId){
-    const txid = String(q('#txid-input')?.value || '').trim();
-    if (!txid) {
+    const txidRaw = String(q('#txid-input')?.value || '').trim();
+    if (!txidRaw) {
         setNote('Укажите TXID или ссылку на транзакцию.', false);
+        return;
+    }
+    const txid = normalizeTronTxid(txidRaw);
+    if (!txid) {
+        setNote('Некорректный TXID. Нужен хеш TRON (64 символа) или ссылка на него.', false);
         return;
     }
     if (!API_BASE) {

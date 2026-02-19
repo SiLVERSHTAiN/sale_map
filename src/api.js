@@ -105,6 +105,35 @@ function safeJsonParse(s) {
     }
 }
 
+function normalizeTronTxid(input) {
+    const raw = String(input || "").trim();
+    if (!raw) return null;
+
+    if (/^[a-fA-F0-9]{64}$/.test(raw)) {
+        return raw.toLowerCase();
+    }
+
+    try {
+        const u = new URL(raw);
+        const byParam =
+            u.searchParams.get("txid") ||
+            u.searchParams.get("hash") ||
+            u.searchParams.get("transaction");
+        if (byParam && /^[a-fA-F0-9]{64}$/.test(byParam)) {
+            return byParam.toLowerCase();
+        }
+        const chunks = [u.pathname, u.hash, u.search];
+        for (const chunk of chunks) {
+            const m = String(chunk || "").match(/[a-fA-F0-9]{64}/);
+            if (m) return m[0].toLowerCase();
+        }
+    } catch {}
+
+    const m = raw.match(/[a-fA-F0-9]{64}/);
+    if (m) return m[0].toLowerCase();
+    return null;
+}
+
 function abs(p) {
     return path.resolve(process.cwd(), p);
 }
@@ -388,10 +417,14 @@ export function startApiServer({
             const body = await readJsonBody(req);
             const initData = body?.initData;
             const productId = body?.productId;
-            const txid = String(body?.txid || "").trim();
+            const txidRaw = String(body?.txid || "").trim();
+            const txid = normalizeTronTxid(txidRaw);
 
-            if (!initData || !productId || !txid) {
+            if (!initData || !productId || !txidRaw) {
                 return sendJson(res, 400, { ok: false, error: "missing_fields" });
+            }
+            if (!txid) {
+                return sendJson(res, 400, { ok: false, error: "invalid_txid_format" });
             }
 
             const verified = verifyInitData(initData, botToken);
