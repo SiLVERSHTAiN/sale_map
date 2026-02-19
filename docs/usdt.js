@@ -139,7 +139,7 @@ async function submitRequest(productId){
     }
     const tg = getTg();
     if (!tg) {
-        setNote('Откройте эту страницу внутри Telegram.', false);
+        setNote('Не удалось отправить заявку. Попробуйте позже.', false);
         return;
     }
     const initData = await waitInitData();
