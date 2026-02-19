@@ -122,6 +122,14 @@ function safeJsonParse(s) {
     }
 }
 
+function parseTxidFromAdminMessage(text) {
+    const m = String(text || "").match(/^TXID:\s*(.+)$/m);
+    if (!m) return null;
+    const txid = String(m[1] || "").trim();
+    if (!txid || txid === "-") return null;
+    return txid;
+}
+
 function webAppKeyboardIfAny() {
     return Markup.inlineKeyboard([
         Markup.button.webApp("🗺 Открыть витрину", WEBAPP_URL),
@@ -276,11 +284,20 @@ async function handleManualUsdtRequest({ userId, productId, txid, product, amoun
         `Сумма: ${amountUsdt} USDT`,
         `TXID: ${txid}`,
         "",
-        `Подтвердить: /approve ${userId} ${productId}`,
-        `Отклонить: /reject ${userId} ${productId}`,
+        "Нажмите кнопку ниже для решения:",
+        `Командой тоже можно: /approve ${userId} ${productId}`,
     ];
     try {
-        await bot.telegram.sendMessage(ADMIN_CHAT_ID, lines.join("\n"));
+        await bot.telegram.sendMessage(
+            ADMIN_CHAT_ID,
+            lines.join("\n"),
+            Markup.inlineKeyboard([
+                [
+                    Markup.button.callback("✅ Подтвердить", `ua:${userId}:${productId}`),
+                    Markup.button.callback("❌ Отклонить", `ur:${userId}:${productId}`),
+                ],
+            ])
+        );
     } catch (error) {
         const details =
             error?.description ||
@@ -289,6 +306,33 @@ async function handleManualUsdtRequest({ userId, productId, txid, product, amoun
             String(error);
         throw new Error(`admin_notify_failed:${details}`);
     }
+}
+
+async function approveUsdtPurchase({ userId, productId, txid }) {
+    await storePurchaseAsync({
+        userId,
+        productId,
+        telegramPaymentChargeId: null,
+        payload: JSON.stringify({
+            provider: "usdt_manual",
+            txid: txid || null,
+        }),
+    });
+
+    await bot.telegram.sendMessage(
+        userId,
+        "✅ Оплата подтверждена. Сейчас отправлю файл.",
+        withWebAppKeyboard()
+    );
+    await handleGetFileByUser(userId, productId);
+}
+
+async function rejectUsdtPurchase({ userId, productId }) {
+    await bot.telegram.sendMessage(
+        userId,
+        "Платёж пока не подтверждён. Проверь TXID и сумму или напиши в поддержку.",
+        withWebAppKeyboard()
+    );
 }
 
 async function handleBuy(ctx, productId) {
@@ -428,22 +472,7 @@ bot.command("approve", async (ctx) => {
         return;
     }
 
-    await storePurchaseAsync({
-        userId,
-        productId,
-        telegramPaymentChargeId: null,
-        payload: JSON.stringify({
-            provider: "usdt_manual",
-            txid: txid || null,
-        }),
-    });
-
-    await bot.telegram.sendMessage(
-        userId,
-        "✅ Оплата подтверждена. Сейчас отправлю файл.",
-        withWebAppKeyboard()
-    );
-    await handleGetFileByUser(userId, productId);
+    await approveUsdtPurchase({ userId, productId, txid });
 
     await ctx.reply("Готово. Файл отправлен.");
 });
@@ -460,11 +489,7 @@ bot.command("reject", async (ctx) => {
         return;
     }
 
-    await bot.telegram.sendMessage(
-        userId,
-        "Платёж пока не подтверждён. Проверь TXID и сумму или напиши в поддержку.",
-        withWebAppKeyboard()
-    );
+    await rejectUsdtPurchase({ userId, productId });
     await ctx.reply("Ок, пользователь уведомлён.");
 });
 
@@ -626,6 +651,44 @@ bot.on("message", async (ctx) => {
 
 // На некоторых клиентах web_app_data приходит как callback_query
 bot.on("callback_query", async (ctx) => {
+    const cbData = String(ctx.callbackQuery?.data || "");
+    if (cbData.startsWith("ua:") || cbData.startsWith("ur:")) {
+        if (!isAdmin(ctx.from?.id)) {
+            try { await ctx.answerCbQuery("Недостаточно прав", { show_alert: true }); } catch {}
+            return;
+        }
+        const parts = cbData.split(":");
+        const action = parts[0];
+        const userId = Number(parts[1]);
+        const productId = parts[2];
+        if (!Number.isFinite(userId) || !productId) {
+            try { await ctx.answerCbQuery("Некорректные данные", { show_alert: true }); } catch {}
+            return;
+        }
+
+        try {
+            if (action === "ua") {
+                const txid = parseTxidFromAdminMessage(ctx.callbackQuery?.message?.text);
+                await approveUsdtPurchase({ userId, productId, txid });
+                try { await ctx.answerCbQuery("Оплата подтверждена"); } catch {}
+                try { await ctx.editMessageReplyMarkup({ inline_keyboard: [] }); } catch {}
+                await ctx.reply("Готово. Файл отправлен.");
+                return;
+            }
+            if (action === "ur") {
+                await rejectUsdtPurchase({ userId, productId });
+                try { await ctx.answerCbQuery("Пользователь уведомлён"); } catch {}
+                try { await ctx.editMessageReplyMarkup({ inline_keyboard: [] }); } catch {}
+                await ctx.reply("Ок, пользователь уведомлён.");
+                return;
+            }
+        } catch (error) {
+            const msg = error?.message || "Ошибка";
+            try { await ctx.answerCbQuery(`Ошибка: ${msg}`, { show_alert: true }); } catch {}
+            return;
+        }
+    }
+
     const data = extractWebAppData(ctx);
     if (!data) return;
     try { await ctx.answerCbQuery(); } catch {}

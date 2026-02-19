@@ -44,12 +44,6 @@ body{
   margin-bottom: 12px;
 }
 
-.top-actions{
-  display:flex;
-  align-items:center;
-  gap:8px;
-}
-
 .brand h1{
   margin:0;
   font-size: 18px;
@@ -59,13 +53,6 @@ body{
   margin: 4px 0 0;
   color: var(--muted);
   font-size: 13px;
-}
-
-.build-note{
-  margin-top: 4px;
-  font-size: 11px;
-  color: var(--muted);
-  opacity: .85;
 }
 
 .brand a,
@@ -551,7 +538,9 @@ a.btn{
   align-items: center;
   justify-content: center;
   padding: 20px;
-  background: rgba(11, 18, 32, 0.55);
+  background: rgba(7, 12, 23, 0.72);
+  -webkit-backdrop-filter: blur(7px);
+  backdrop-filter: blur(7px);
   z-index: 999;
 }
 
@@ -562,10 +551,10 @@ a.btn{
 .modal{
   width: min(420px, 100%);
   background: var(--card);
-  border: 1px solid var(--stroke);
+  border: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 18px;
   padding: 16px 18px;
-  box-shadow: var(--shadow);
+  box-shadow: 0 24px 58px rgba(0, 0, 0, 0.48), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
   text-align: center;
 }
 
@@ -578,45 +567,6 @@ a.btn{
   margin: 0 0 14px;
   color: var(--muted);
   font-size: 13px;
-}
-
-.debug-panel{
-  position: fixed;
-  left: 10px;
-  right: 10px;
-  bottom: 10px;
-  max-height: 42vh;
-  overflow: auto;
-  z-index: 998;
-  border: 1px solid rgba(255,255,255,.2);
-  border-radius: 12px;
-  background: rgba(5, 10, 24, .9);
-  color: #dbeafe;
-  backdrop-filter: blur(6px);
-}
-
-#debug-toggle{
-  min-width: 64px;
-}
-
-.debug-head{
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 10px;
-  border-bottom: 1px solid rgba(255,255,255,.15);
-  font-size: 12px;
-}
-
-.debug-panel pre{
-  margin: 0;
-  padding: 10px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-size: 11px;
-  line-height: 1.35;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 }
 
 .btn.ghost{
