@@ -230,22 +230,6 @@ async function handleGetFileByUser(userId, productId) {
     await handleHowToToUser(userId);
 }
 
-async function handleCryptoPaid({ userId, productId, invoice }) {
-    if (!userId || !productId) return;
-    if (!(await hasPurchaseAsync(userId, productId))) {
-        await storePurchaseAsync({
-            userId,
-            productId,
-            telegramPaymentChargeId: null,
-            payload: JSON.stringify({
-                provider: "cryptocloud",
-                invoice: invoice || null,
-            }),
-        });
-    }
-    await handleGetFileByUser(userId, productId);
-}
-
 async function handleYookassaPaid({ userId, productId, payment }) {
     if (!userId || !productId) return;
     if (!(await hasPurchaseAsync(userId, productId))) {
@@ -573,7 +557,6 @@ startApiServer({
     port: PORT,
     botToken: BOT_TOKEN,
     onAction: handleWebAppActionByUser,
-    onCryptoPaid: handleCryptoPaid,
     onYookassaPaid: handleYookassaPaid,
     onYookassaRefund: handleYookassaRefund,
 });

@@ -105,36 +105,6 @@ function safeJsonParse(s) {
     }
 }
 
-function base64UrlDecode(input) {
-    const b64 = String(input || "").replace(/-/g, "+").replace(/_/g, "/");
-    const pad = b64.length % 4 ? "=".repeat(4 - (b64.length % 4)) : "";
-    return Buffer.from(b64 + pad, "base64").toString("utf8");
-}
-
-function base64UrlEncode(buf) {
-    return Buffer.from(buf)
-        .toString("base64")
-        .replace(/\+/g, "-")
-        .replace(/\//g, "_")
-        .replace(/=+$/g, "");
-}
-
-function verifyPostbackToken(token, secret) {
-    if (!token || !secret) return null;
-    const parts = String(token).split(".");
-    if (parts.length !== 3) return null;
-    const [headerB64, payloadB64, sigB64] = parts;
-    const data = `${headerB64}.${payloadB64}`;
-    const expected = crypto.createHmac("sha256", secret).update(data).digest();
-    const expectedB64 = base64UrlEncode(expected);
-    if (expectedB64 !== sigB64) return null;
-    const payloadJson = base64UrlDecode(payloadB64);
-    const payload = safeJsonParse(payloadJson);
-    if (!payload) return null;
-    if (payload.exp && Date.now() / 1000 > Number(payload.exp) + 30) return null;
-    return payload;
-}
-
 function abs(p) {
     return path.resolve(process.cwd(), p);
 }
@@ -180,7 +150,6 @@ export function startApiServer({
     port,
     botToken,
     onAction,
-    onCryptoPaid,
     onYookassaPaid,
     onYookassaRefund,
 }) {
@@ -224,107 +193,6 @@ export function startApiServer({
             return sendJson(res, 200, { ok: true, userId, purchases, purchasesDetailed });
         }
 
-        if (url.pathname === "/api/crypto/invoice") {
-            if (req.method !== "POST" || !isJsonRequest) {
-                return sendJson(res, 405, { ok: false, error: "method_not_allowed" });
-            }
-
-            const body = await readJsonBody(req);
-            const initData = body?.initData;
-            const productId = body?.productId;
-
-            if (!initData || !productId) {
-                return sendJson(res, 400, { ok: false, error: "initData_or_product_missing" });
-            }
-
-            const verified = verifyInitData(initData, botToken);
-            if (!verified) {
-                return sendJson(res, 401, { ok: false, error: "invalid_init_data" });
-            }
-
-            const userId = parseUserId(verified);
-            if (!userId) {
-                return sendJson(res, 400, { ok: false, error: "user_id_missing" });
-            }
-
-            const catalog = readCatalog();
-            const products = Array.isArray(catalog?.products) ? catalog.products : [];
-            const product = products.find((p) => p && p.id === productId && p.active !== false);
-            const amount = Number(product?.priceUsdt || 0);
-
-            if (!product || !Number.isFinite(amount) || amount <= 0) {
-                return sendJson(res, 400, { ok: false, error: "invalid_product" });
-            }
-
-            const apiKey = process.env.CRYPTOCLOUD_API_KEY;
-            const shopId = process.env.CRYPTOCLOUD_SHOP_ID;
-            if (!apiKey || !shopId) {
-                return sendJson(res, 500, { ok: false, error: "crypto_config_missing" });
-            }
-
-            const orderId = `${userId}:${productId}:${Date.now().toString(36)}`;
-            try {
-                const availableCurrenciesRaw = process.env.CRYPTOCLOUD_AVAILABLE_CURRENCIES || "";
-                const availableCurrencies = availableCurrenciesRaw
-                    .split(",")
-                    .map((s) => s.trim())
-                    .filter(Boolean);
-
-                const payload = {
-                    shop_id: shopId,
-                    amount,
-                    currency: "USD",
-                    order_id: orderId,
-                    add_fields: {
-                        product_id: productId,
-                        user_id: String(userId),
-                    },
-                };
-
-                if (availableCurrencies.length) {
-                    payload.add_fields.available_currencies = availableCurrencies;
-                }
-
-                const resp = await fetch("https://api.cryptocloud.plus/v2/invoice/create", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Token ${apiKey}`,
-                    },
-                    body: JSON.stringify(payload),
-                });
-                const data = await resp.json().catch(() => ({}));
-                if (!resp.ok || data?.status !== "success") {
-                    console.error("CRYPTOCLOUD_CREATE_FAILED", {
-                        httpStatus: resp.status,
-                        body: data,
-                    });
-                    const details =
-                        data?.message ||
-                        data?.error ||
-                        data?.errors ||
-                        data?.result ||
-                        data?.description ||
-                        data;
-                    return sendJson(res, 502, {
-                        ok: false,
-                        error: "crypto_create_failed",
-                        details,
-                    });
-                }
-                const payUrl =
-                    data?.result?.link ||
-                    data?.link ||
-                    data?.pay_url ||
-                    data?.invoice_url;
-                if (!payUrl) {
-                    return sendJson(res, 502, { ok: false, error: "crypto_no_link" });
-                }
-                return sendJson(res, 200, { ok: true, payUrl, orderId });
-            } catch {
-                return sendJson(res, 502, { ok: false, error: "crypto_request_failed" });
-            }
-        }
 
         if (url.pathname === "/api/yookassa/create") {
             if (req.method !== "POST" || !isJsonRequest) {
@@ -510,54 +378,6 @@ export function startApiServer({
             return sendJson(res, 200, { ok: true });
         }
 
-        if (url.pathname === "/api/crypto/postback") {
-            const raw = await readRawBody(req);
-            const body = safeJsonParse(raw) || Object.fromEntries(new URLSearchParams(raw));
-            const token = body?.token || body?.jwt || body?.signature || null;
-            const secret = process.env.CRYPTOCLOUD_POSTBACK_SECRET;
-
-            if (!token || !secret) {
-                return sendJson(res, 400, { ok: false, error: "crypto_token_missing" });
-            }
-
-            const verified = verifyPostbackToken(token, secret);
-            if (!verified) {
-                return sendJson(res, 401, { ok: false, error: "crypto_token_invalid" });
-            }
-
-            const invoice = body?.invoice_info || body?.invoice || {};
-            const orderId = body?.order_id || invoice?.order_id;
-            const status = String(body?.status || invoice?.invoice_status || invoice?.status || "");
-
-            if (!orderId) {
-                return sendJson(res, 400, { ok: false, error: "order_id_missing" });
-            }
-
-            if (status && !["success", "paid", "overpaid"].includes(status)) {
-                return sendJson(res, 200, { ok: true });
-            }
-
-            const parts = String(orderId).split(":");
-            const userId = Number(parts[0]);
-            const productId = parts[1];
-            if (!Number.isFinite(userId) || !productId) {
-                return sendJson(res, 400, { ok: false, error: "order_id_invalid" });
-            }
-
-            if (typeof onCryptoPaid === "function") {
-                try {
-                    await onCryptoPaid({
-                        userId,
-                        productId,
-                        invoice: body,
-                    });
-                } catch {
-                    return sendJson(res, 500, { ok: false, error: "crypto_handler_failed" });
-                }
-            }
-
-            return sendJson(res, 200, { ok: true });
-        }
 
         if (url.pathname === "/api/action") {
             if (req.method !== "POST" || !isJsonRequest) {

@@ -305,35 +305,8 @@ async function send(action, productId){
         return;
     }
     const initData = await waitInitData(1200);
-    if (action === 'CRYPTO'){
-        if (!API_BASE || !initData) {
-            alert('Оплата криптовалютой доступна только внутри Telegram.');
-            return;
-        }
-        try{
-            const res = await fetch(`${API_BASE}/api/crypto/invoice`, {
-                method: 'POST',
-                headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({ initData, productId })
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok || !data?.ok || !data?.payUrl) {
-                const details = typeof data?.details === 'string'
-                    ? data.details
-                    : (data?.details?.message || data?.error || '');
-                alert('Не удалось создать счёт. ' + (details || 'Попробуйте позже.'));
-                return;
-            }
-            try { sessionStorage.removeItem(ENTITLEMENTS_KEY); } catch(e){}
-            setPendingPayment(productId);
-            if (tg?.openLink) {
-                tg.openLink(data.payUrl);
-            } else {
-                window.location.href = data.payUrl;
-            }
-        }catch(e){
-            alert('Не удалось создать счёт. Попробуйте позже.');
-        }
+    if (action === 'MANUAL_PAY'){
+        alert('Оплата в USDT выполняется вручную. Напишите в поддержку: silvershtain@mail.ru');
         return;
     }
     if (action === 'CARD'){
@@ -545,7 +518,7 @@ function renderCityCard(city, products, purchasedSet, purchaseMap){
                             `}
                         ` : ''}
                         ${hasCryptoPay ? `
-                            <button class="btn crypto" data-action="CRYPTO" data-product="${esc(full.id)}">
+                            <button class="btn crypto" data-action="MANUAL_PAY" data-product="${esc(full.id)}">
                                 Оплатить в USDT
                             </button>` : ''
                         }
