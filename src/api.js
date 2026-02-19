@@ -152,6 +152,7 @@ export function startApiServer({
     onAction,
     onYookassaPaid,
     onYookassaRefund,
+    onManualUsdtRequest,
 }) {
     const server = http.createServer(async (req, res) => {
         setCors(res);
@@ -378,6 +379,57 @@ export function startApiServer({
             return sendJson(res, 200, { ok: true });
         }
 
+
+        if (url.pathname === "/api/usdt/request") {
+            if (req.method !== "POST" || !isJsonRequest) {
+                return sendJson(res, 405, { ok: false, error: "method_not_allowed" });
+            }
+
+            const body = await readJsonBody(req);
+            const initData = body?.initData;
+            const productId = body?.productId;
+            const txid = String(body?.txid || "").trim();
+
+            if (!initData || !productId || !txid) {
+                return sendJson(res, 400, { ok: false, error: "missing_fields" });
+            }
+
+            const verified = verifyInitData(initData, botToken);
+            if (!verified) {
+                return sendJson(res, 401, { ok: false, error: "invalid_init_data" });
+            }
+
+            const userId = parseUserId(verified);
+            if (!userId) {
+                return sendJson(res, 400, { ok: false, error: "user_id_missing" });
+            }
+
+            const catalog = readCatalog();
+            const products = Array.isArray(catalog?.products) ? catalog.products : [];
+            const product = products.find((p) => p && p.id === productId && p.active !== false);
+            const amountUsdt = Number(product?.priceUsdt || 0);
+
+            if (!product || !Number.isFinite(amountUsdt) || amountUsdt <= 0) {
+                return sendJson(res, 400, { ok: false, error: "invalid_product" });
+            }
+
+            if (typeof onManualUsdtRequest !== "function") {
+                return sendJson(res, 500, { ok: false, error: "manual_handler_missing" });
+            }
+
+            try {
+                await onManualUsdtRequest({
+                    userId,
+                    productId,
+                    txid,
+                    product,
+                    amountUsdt,
+                });
+                return sendJson(res, 200, { ok: true });
+            } catch {
+                return sendJson(res, 500, { ok: false, error: "manual_request_failed" });
+            }
+        }
 
         if (url.pathname === "/api/action") {
             if (req.method !== "POST" || !isJsonRequest) {

@@ -19,6 +19,7 @@ if (!BOT_TOKEN) throw new Error("BOT_TOKEN is missing in .env");
 const ASSETS_DIR = process.env.ASSETS_DIR || "./assets";
 const CATALOG_PATH = process.env.CATALOG_PATH || "./docs/products.json";
 const DEFAULT_CITY_ID = process.env.DEFAULT_CITY_ID || "";
+const ADMIN_CHAT_ID = Number(process.env.ADMIN_CHAT_ID || 0);
 
 // URL витрины. Можно переопределить через .env (WEBAPP_URL)
 const WEBAPP_URL =
@@ -39,6 +40,10 @@ function instructionText() {
         "",
         "Если не импортируется — напиши /support (модель телефона + скрин ошибки).",
     ].join("\n");
+}
+
+function isAdmin(userId) {
+    return Boolean(ADMIN_CHAT_ID) && Number(userId) === Number(ADMIN_CHAT_ID);
 }
 
 function readCatalog() {
@@ -258,6 +263,23 @@ async function handleYookassaRefund({ userId, productId, isFullRefund }) {
     }
 }
 
+async function handleManualUsdtRequest({ userId, productId, txid, product, amountUsdt }) {
+    if (!ADMIN_CHAT_ID) return;
+    const title = product?.title || "Полная версия";
+    const city = product?.cityId ? ` (${product.cityId})` : "";
+    const lines = [
+        "🪙 Запрос оплаты USDT",
+        `Пользователь: ${userId}`,
+        `Товар: ${productId}${city} — ${title}`,
+        `Сумма: ${amountUsdt} USDT`,
+        `TXID: ${txid}`,
+        "",
+        `Подтвердить: /approve ${userId} ${productId}`,
+        `Отклонить: /reject ${userId} ${productId}`,
+    ];
+    await bot.telegram.sendMessage(ADMIN_CHAT_ID, lines.join("\n"));
+}
+
 async function handleBuy(ctx, productId) {
     const { productsById, citiesById } = getCatalog();
     const product = productsById[productId];
@@ -380,6 +402,59 @@ bot.command("support", async (ctx) => {
         "🆘 *Поддержка*\n\nEmail: silvershtain@mail.ru\nОтвет в течение 24 часов.\n\nОпиши проблему и пришли:\n— модель телефона\n— приложение (Organic Maps или MAPS.ME)\n— скрин/видео ошибки\n\nЯ помогу.",
         withWebAppKeyboard({ parse_mode: "Markdown" })
     );
+});
+
+bot.command("approve", async (ctx) => {
+    if (!isAdmin(ctx.from?.id)) return;
+    const text = String(ctx.message?.text || "").trim();
+    const parts = text.split(/\s+/);
+    const userId = Number(parts[1]);
+    const productId = parts[2];
+    const txid = parts.slice(3).join(" ") || null;
+
+    if (!Number.isFinite(userId) || !productId) {
+        await ctx.reply("Использование: /approve <user_id> <product_id> [txid]");
+        return;
+    }
+
+    await storePurchaseAsync({
+        userId,
+        productId,
+        telegramPaymentChargeId: null,
+        payload: JSON.stringify({
+            provider: "usdt_manual",
+            txid: txid || null,
+        }),
+    });
+
+    await bot.telegram.sendMessage(
+        userId,
+        "✅ Оплата подтверждена. Сейчас отправлю файл.",
+        withWebAppKeyboard()
+    );
+    await handleGetFileByUser(userId, productId);
+
+    await ctx.reply("Готово. Файл отправлен.");
+});
+
+bot.command("reject", async (ctx) => {
+    if (!isAdmin(ctx.from?.id)) return;
+    const text = String(ctx.message?.text || "").trim();
+    const parts = text.split(/\s+/);
+    const userId = Number(parts[1]);
+    const productId = parts[2];
+
+    if (!Number.isFinite(userId) || !productId) {
+        await ctx.reply("Использование: /reject <user_id> <product_id>");
+        return;
+    }
+
+    await bot.telegram.sendMessage(
+        userId,
+        "Платёж пока не подтверждён. Проверь TXID и сумму или напиши в поддержку.",
+        withWebAppKeyboard()
+    );
+    await ctx.reply("Ок, пользователь уведомлён.");
 });
 
 bot.command("how", handleHowTo);
@@ -559,6 +634,7 @@ startApiServer({
     onAction: handleWebAppActionByUser,
     onYookassaPaid: handleYookassaPaid,
     onYookassaRefund: handleYookassaRefund,
+    onManualUsdtRequest: handleManualUsdtRequest,
 });
 process.once("SIGINT", () => bot.stop("SIGINT"));
 process.once("SIGTERM", () => bot.stop("SIGTERM"));

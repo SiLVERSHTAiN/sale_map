@@ -306,7 +306,8 @@ async function send(action, productId){
     }
     const initData = await waitInitData(1200);
     if (action === 'MANUAL_PAY'){
-        alert('Оплата в USDT выполняется вручную. Напишите в поддержку: silvershtain@mail.ru');
+        const target = `./usdt-pay.html?product=${encodeURIComponent(productId || '')}`;
+        window.location.href = target;
         return;
     }
     if (action === 'CARD'){

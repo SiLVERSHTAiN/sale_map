@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>Sale Maps · Оплата USDT</title>
+    <link rel="stylesheet" href="./style.css" />
+</head>
+
+<body data-page="usdt-pay">
+    <div class="wrap">
+        <div class="top">
+            <div class="brand">
+                <h1>Оплата USDT</h1>
+                <p>Сеть: TRC20 (Tron). Перевод без memo.</p>
+            </div>
+            <a class="chip" href="./index.html">🏠 Главная</a>
+        </div>
+
+        <div class="card">
+            <div class="title" id="usdt-product">Загрузка…</div>
+            <div class="pay-meta">
+                <div>Сумма к оплате</div>
+                <div class="pay-amount" id="usdt-amount">—</div>
+                <div>Сеть: <b id="usdt-network">TRC20</b></div>
+            </div>
+
+            <div class="field" style="margin-top:12px;">
+                <label>Адрес для оплаты</label>
+                <div class="copy-row">
+                    <input id="usdt-address" readonly value="" />
+                    <button class="btn inline" id="copy-address" type="button">Скопировать</button>
+                </div>
+            </div>
+
+            <div class="qr-box" style="margin-top:12px;">
+                <img id="usdt-qr" alt="QR для оплаты USDT" />
+            </div>
+
+            <div class="note" style="margin-top:10px;">
+                Отправляйте только USDT в сети TRC20 на этот адрес.
+            </div>
+        </div>
+
+        <div class="card" style="margin-top:12px;">
+            <div class="field">
+                <label>TXID или ссылка на транзакцию</label>
+                <input id="txid-input" placeholder="Например: https://tronscan.org/#/transaction/..." />
+            </div>
+            <button class="btn crypto" id="submit-usdt" type="button" style="margin-top:12px;">
+                Подтвердить оплату
+            </button>
+            <div class="note hidden" id="txid-note" style="margin-top:10px;"></div>
+        </div>
+    </div>
+
+    <script src="./config.js"></script>
+    <script src="./usdt.js"></script>
+</body>
+</html>
