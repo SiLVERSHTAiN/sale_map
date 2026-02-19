@@ -44,6 +44,12 @@ body{
   margin-bottom: 12px;
 }
 
+.top-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
 .brand h1{
   margin:0;
   font-size: 18px;
@@ -53,6 +59,13 @@ body{
   margin: 4px 0 0;
   color: var(--muted);
   font-size: 13px;
+}
+
+.build-note{
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted);
+  opacity: .85;
 }
 
 .brand a,
@@ -580,6 +593,10 @@ a.btn{
   background: rgba(5, 10, 24, .9);
   color: #dbeafe;
   backdrop-filter: blur(6px);
+}
+
+#debug-toggle{
+  min-width: 64px;
 }
 
 .debug-head{

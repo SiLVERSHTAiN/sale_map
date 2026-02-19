@@ -3,8 +3,15 @@ const API_BASE = String(APP_CONFIG.API_BASE || "").replace(/\/$/, "");
 const USDT_ADDRESS = String(APP_CONFIG.USDT_TRC20_ADDRESS || "").trim();
 const USDT_NETWORK = String(APP_CONFIG.USDT_NETWORK || "TRC20").trim() || "TRC20";
 const DEBUG_ENABLED = APP_CONFIG.USDT_DEBUG !== false;
+const BUILD_MARK =
+    String(APP_CONFIG.USDT_BUILD || "").trim() ||
+    new URLSearchParams(window.location.search).get('v') ||
+    document.lastModified ||
+    '';
+let debugOpen = false;
 const debugState = {
     ts: new Date().toISOString(),
+    build: BUILD_MARK || null,
     apiBase: API_BASE || null,
     productIdQuery: null,
     productIdResolved: null,
@@ -29,13 +36,19 @@ function getTg(){
 
 function renderDebug(){
     const panel = q('#debug-panel');
+    const toggle = q('#debug-toggle');
     const out = q('#debug-output');
     if (!panel || !out) return;
     if (!DEBUG_ENABLED) {
         panel.classList.add('hidden');
+        if (toggle) toggle.classList.add('hidden');
         return;
     }
-    panel.classList.remove('hidden');
+    if (toggle) {
+        toggle.classList.remove('hidden');
+        toggle.textContent = debugOpen ? 'DBG −' : 'DBG +';
+    }
+    panel.classList.toggle('hidden', !debugOpen);
     out.textContent = JSON.stringify(debugState, null, 2);
 }
 
@@ -132,6 +145,7 @@ function setNote(message, ok = false){
     note.textContent = message;
     note.classList.remove('hidden');
     note.classList.toggle('success', ok);
+    if (!ok && DEBUG_ENABLED) debugOpen = true;
     updateDebug({ note: message });
 }
 
@@ -244,6 +258,8 @@ async function init(){
     installInputDismissal();
     q('#usdt-network').textContent = USDT_NETWORK || 'TRC20';
     q('#usdt-address').value = USDT_ADDRESS;
+    const buildNode = q('#usdt-build');
+    if (buildNode) buildNode.textContent = BUILD_MARK ? `build: ${BUILD_MARK}` : '';
     setQr(USDT_ADDRESS);
 
     const params = new URLSearchParams(window.location.search);
@@ -279,6 +295,14 @@ async function init(){
         const ok = copyText(USDT_ADDRESS);
         setNote(ok ? 'Адрес скопирован.' : 'Не удалось скопировать адрес.', ok);
     });
+
+    const debugToggle = q('#debug-toggle');
+    if (debugToggle) {
+        debugToggle.addEventListener('click', () => {
+            debugOpen = !debugOpen;
+            renderDebug();
+        });
+    }
 
     const okBtn = q('#success-ok');
     if (okBtn) {

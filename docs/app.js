@@ -309,6 +309,7 @@ async function send(action, productId){
         const qs = new URLSearchParams();
         qs.set('product', String(productId || ''));
         if (initData) qs.set('tgWebAppData', initData);
+        qs.set('v', String(Date.now()));
         const target = `./usdt-pay.html?${qs.toString()}`;
         window.location.href = target;
         return;
