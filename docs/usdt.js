@@ -58,6 +58,21 @@ async function waitInitData(timeoutMs = 2000){
 }
 
 function q(sel){ return document.querySelector(sel); }
+function installInputDismissal(){
+    const isEditable = (el) => el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
+    const shouldIgnore = (target) => {
+        if (!target) return false;
+        return !!target.closest('input, textarea, button, a, label, .copy-btn, .primary, .ghost');
+    };
+    const handler = (event) => {
+        const active = document.activeElement;
+        if (isEditable(active) && !shouldIgnore(event.target)) {
+            active.blur();
+        }
+    };
+    document.addEventListener('touchstart', handler, { passive: true });
+    document.addEventListener('mousedown', handler);
+}
 
 async function loadCatalog(){
     const res = await fetch('./products.json', { cache: 'no-store' });
@@ -147,12 +162,14 @@ async function submitRequest(productId){
 
 async function init(){
     applyTelegramTheme();
+    installInputDismissal();
     q('#usdt-network').textContent = USDT_NETWORK || 'TRC20';
     q('#usdt-address').value = USDT_ADDRESS;
     setQr(USDT_ADDRESS);
 
     const params = new URLSearchParams(window.location.search);
     const productId = params.get('product');
+    let resolvedProductId = productId || '';
 
     try{
         const data = await loadCatalog();
@@ -170,12 +187,12 @@ async function init(){
             const title = city ? `${city.name} — ${product.title || 'Полная версия'}` : (product.title || 'Полная версия');
             q('#usdt-product').textContent = title;
             q('#usdt-amount').textContent = formatUsdt(product.priceUsdt);
+            resolvedProductId = product.id || resolvedProductId;
         }
-
-        q('#submit-usdt').addEventListener('click', () => submitRequest(product?.id || productId || ''));
     }catch{
         q('#usdt-product').textContent = 'Полная версия';
     }
+    q('#submit-usdt').addEventListener('click', () => submitRequest(resolvedProductId));
 
     q('#copy-address').addEventListener('click', () => {
         const ok = copyText(USDT_ADDRESS);
