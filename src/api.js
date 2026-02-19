@@ -426,8 +426,17 @@ export function startApiServer({
                     amountUsdt,
                 });
                 return sendJson(res, 200, { ok: true });
-            } catch {
-                return sendJson(res, 500, { ok: false, error: "manual_request_failed" });
+            } catch (error) {
+                const details =
+                    error?.message ||
+                    error?.description ||
+                    error?.response?.description ||
+                    "unknown_error";
+                return sendJson(res, 500, {
+                    ok: false,
+                    error: "manual_request_failed",
+                    details,
+                });
             }
         }
 

@@ -264,7 +264,9 @@ async function handleYookassaRefund({ userId, productId, isFullRefund }) {
 }
 
 async function handleManualUsdtRequest({ userId, productId, txid, product, amountUsdt }) {
-    if (!ADMIN_CHAT_ID) return;
+    if (!ADMIN_CHAT_ID) {
+        throw new Error("admin_chat_id_missing");
+    }
     const title = product?.title || "Полная версия";
     const city = product?.cityId ? ` (${product.cityId})` : "";
     const lines = [
@@ -277,7 +279,16 @@ async function handleManualUsdtRequest({ userId, productId, txid, product, amoun
         `Подтвердить: /approve ${userId} ${productId}`,
         `Отклонить: /reject ${userId} ${productId}`,
     ];
-    await bot.telegram.sendMessage(ADMIN_CHAT_ID, lines.join("\n"));
+    try {
+        await bot.telegram.sendMessage(ADMIN_CHAT_ID, lines.join("\n"));
+    } catch (error) {
+        const details =
+            error?.description ||
+            error?.response?.description ||
+            error?.message ||
+            String(error);
+        throw new Error(`admin_notify_failed:${details}`);
+    }
 }
 
 async function handleBuy(ctx, productId) {
