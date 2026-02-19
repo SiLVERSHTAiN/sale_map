@@ -1,12 +1,15 @@
-const tg = window.Telegram?.WebApp;
-const isTg = !!tg;
 const APP_CONFIG = window.APP_CONFIG || {};
 const API_BASE = String(APP_CONFIG.API_BASE || "").replace(/\/$/, "");
 const USDT_ADDRESS = String(APP_CONFIG.USDT_TRC20_ADDRESS || "").trim();
 const USDT_NETWORK = String(APP_CONFIG.USDT_NETWORK || "TRC20").trim() || "TRC20";
 
+function getTg(){
+    return window.Telegram?.WebApp || null;
+}
+
 function applyTelegramTheme(){
-    if (!isTg) return;
+    const tg = getTg();
+    if (!tg) return;
     tg.ready();
     tg.expand();
 
@@ -134,7 +137,8 @@ async function submitRequest(productId){
         setNote('Сервис недоступен. Попробуйте позже.', false);
         return;
     }
-    if (!isTg) {
+    const tg = getTg();
+    if (!tg) {
         setNote('Откройте эту страницу внутри Telegram.', false);
         return;
     }
@@ -209,9 +213,9 @@ async function init(){
     const okBtn = q('#success-ok');
     if (okBtn) {
         okBtn.addEventListener('click', () => {
-            const tgNow = window.Telegram?.WebApp;
-            if (tgNow?.close) {
-                try { tgNow.close(); } catch(e){}
+            const tg = getTg();
+            if (tg?.close) {
+                try { tg.close(); } catch(e){}
                 return;
             }
             window.location.href = './index.html';
