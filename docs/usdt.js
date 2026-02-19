@@ -209,8 +209,9 @@ async function init(){
     const okBtn = q('#success-ok');
     if (okBtn) {
         okBtn.addEventListener('click', () => {
-            if (isTg && tg?.close) {
-                try { tg.close(); } catch(e){}
+            const tgNow = window.Telegram?.WebApp;
+            if (tgNow?.close) {
+                try { tgNow.close(); } catch(e){}
                 return;
             }
             window.location.href = './index.html';

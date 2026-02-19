@@ -542,6 +542,10 @@ a.btn{
   z-index: 999;
 }
 
+.modal-overlay.hidden{
+  display: none;
+}
+
 .modal{
   width: min(420px, 100%);
   background: var(--card);
