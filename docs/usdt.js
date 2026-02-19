@@ -188,14 +188,10 @@ async function submitRequest(productId){
         colorScheme: tg?.colorScheme || null,
         unsafeUserId: tg?.initDataUnsafe?.user?.id || null,
     });
-    if (!tg) {
-        setNote('Не удалось отправить заявку. Попробуйте позже.', false);
-        return;
-    }
     const initData = await waitInitData();
     updateDebug({ initDataLength: initData.length });
     if (!initData) {
-        setNote('Не удалось получить данные Telegram. Перезапустите витрину.', false);
+        setNote('Не удалось получить данные Telegram (initData). Откройте оплату из витрины заново.', false);
         return;
     }
     try{

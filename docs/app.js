@@ -306,7 +306,10 @@ async function send(action, productId){
     }
     const initData = await waitInitData(1200);
     if (action === 'MANUAL_PAY'){
-        const target = `./usdt-pay.html?product=${encodeURIComponent(productId || '')}`;
+        const qs = new URLSearchParams();
+        qs.set('product', String(productId || ''));
+        if (initData) qs.set('tgWebAppData', initData);
+        const target = `./usdt-pay.html?${qs.toString()}`;
         window.location.href = target;
         return;
     }
