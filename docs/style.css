@@ -531,6 +531,38 @@ a.btn{
   display: none;
 }
 
+.modal-overlay{
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(11, 18, 32, 0.55);
+  z-index: 999;
+}
+
+.modal{
+  width: min(420px, 100%);
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 18px;
+  padding: 16px 18px;
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+
+.modal h3{
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+
+.modal p{
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .btn.ghost{
   background: transparent;
   box-shadow:none;

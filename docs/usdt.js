@@ -94,6 +94,12 @@ function setNote(message, ok = false){
     note.classList.toggle('success', ok);
 }
 
+function showSuccessModal(){
+    const modal = q('#success-modal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+}
+
 function setQr(address){
     const img = q('#usdt-qr');
     if (!img) return;
@@ -154,6 +160,7 @@ async function submitRequest(productId){
         if (btn) btn.disabled = true;
         const input = q('#txid-input');
         if (input) input.value = '';
+        showSuccessModal();
         try { tg.HapticFeedback?.notificationOccurred('success'); } catch(e){}
     }catch(e){
         setNote('Не удалось отправить заявку. Попробуйте позже.', false);
@@ -198,6 +205,17 @@ async function init(){
         const ok = copyText(USDT_ADDRESS);
         setNote(ok ? 'Адрес скопирован.' : 'Не удалось скопировать адрес.', ok);
     });
+
+    const okBtn = q('#success-ok');
+    if (okBtn) {
+        okBtn.addEventListener('click', () => {
+            if (isTg && tg?.close) {
+                try { tg.close(); } catch(e){}
+                return;
+            }
+            window.location.href = './index.html';
+        });
+    }
 }
 
 init();
