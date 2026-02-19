@@ -2,9 +2,46 @@ const APP_CONFIG = window.APP_CONFIG || {};
 const API_BASE = String(APP_CONFIG.API_BASE || "").replace(/\/$/, "");
 const USDT_ADDRESS = String(APP_CONFIG.USDT_TRC20_ADDRESS || "").trim();
 const USDT_NETWORK = String(APP_CONFIG.USDT_NETWORK || "TRC20").trim() || "TRC20";
+const DEBUG_ENABLED = APP_CONFIG.USDT_DEBUG !== false;
+const debugState = {
+    ts: new Date().toISOString(),
+    apiBase: API_BASE || null,
+    productIdQuery: null,
+    productIdResolved: null,
+    telegramObject: false,
+    webAppObject: false,
+    tgVersion: null,
+    platform: null,
+    colorScheme: null,
+    initDataLength: 0,
+    unsafeUserId: null,
+    txidLength: 0,
+    requestUrl: null,
+    requestStatus: null,
+    requestOk: null,
+    responseBody: null,
+    note: null,
+};
 
 function getTg(){
     return window.Telegram?.WebApp || null;
+}
+
+function renderDebug(){
+    const panel = q('#debug-panel');
+    const out = q('#debug-output');
+    if (!panel || !out) return;
+    if (!DEBUG_ENABLED) {
+        panel.classList.add('hidden');
+        return;
+    }
+    panel.classList.remove('hidden');
+    out.textContent = JSON.stringify(debugState, null, 2);
+}
+
+function updateDebug(patch){
+    Object.assign(debugState, patch, { ts: new Date().toISOString() });
+    renderDebug();
 }
 
 function applyTelegramTheme(){
@@ -95,6 +132,7 @@ function setNote(message, ok = false){
     note.textContent = message;
     note.classList.remove('hidden');
     note.classList.toggle('success', ok);
+    updateDebug({ note: message });
 }
 
 function showSuccessModal(){
@@ -129,6 +167,10 @@ function copyText(text){
 
 async function submitRequest(productId){
     const txid = String(q('#txid-input')?.value || '').trim();
+    updateDebug({
+        productIdResolved: productId || null,
+        txidLength: txid.length,
+    });
     if (!txid) {
         setNote('Укажите TXID или ссылку на транзакцию.', false);
         return;
@@ -138,22 +180,42 @@ async function submitRequest(productId){
         return;
     }
     const tg = getTg();
+    updateDebug({
+        telegramObject: !!window.Telegram,
+        webAppObject: !!tg,
+        tgVersion: tg?.version || null,
+        platform: tg?.platform || null,
+        colorScheme: tg?.colorScheme || null,
+        unsafeUserId: tg?.initDataUnsafe?.user?.id || null,
+    });
     if (!tg) {
         setNote('Не удалось отправить заявку. Попробуйте позже.', false);
         return;
     }
     const initData = await waitInitData();
+    updateDebug({ initDataLength: initData.length });
     if (!initData) {
         setNote('Не удалось получить данные Telegram. Перезапустите витрину.', false);
         return;
     }
     try{
-        const res = await fetch(`${API_BASE}/api/usdt/request`, {
+        const requestUrl = `${API_BASE}/api/usdt/request`;
+        updateDebug({ requestUrl, requestStatus: 'pending', requestOk: null, responseBody: null });
+        const res = await fetch(requestUrl, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ initData, productId, txid })
         });
-        const data = await res.json().catch(() => ({}));
+        const rawText = await res.text();
+        let data = {};
+        if (rawText) {
+            try { data = JSON.parse(rawText); } catch { data = {}; }
+        }
+        updateDebug({
+            requestStatus: res.status,
+            requestOk: !!(res.ok && data?.ok),
+            responseBody: rawText || null,
+        });
         if (!res.ok || !data?.ok) {
             const details =
                 (typeof data?.error === 'string' && data.error) ||
@@ -172,6 +234,11 @@ async function submitRequest(productId){
         try { tg.HapticFeedback?.notificationOccurred('success'); } catch(e){}
     }catch(e){
         const details = e?.message ? `Ошибка сети: ${e.message}` : 'Попробуйте позже.';
+        updateDebug({
+            requestStatus: 'network_error',
+            requestOk: false,
+            responseBody: String(e?.stack || e?.message || e || ''),
+        });
         setNote(`Не удалось отправить заявку. ${details}`, false);
     }
 }
@@ -185,6 +252,7 @@ async function init(){
 
     const params = new URLSearchParams(window.location.search);
     const productId = params.get('product');
+    updateDebug({ productIdQuery: productId || null });
     let resolvedProductId = productId || '';
 
     try{
@@ -204,6 +272,7 @@ async function init(){
             q('#usdt-product').textContent = title;
             q('#usdt-amount').textContent = formatUsdt(product.priceUsdt);
             resolvedProductId = product.id || resolvedProductId;
+            updateDebug({ productIdResolved: resolvedProductId || null });
         }
     }catch{
         q('#usdt-product').textContent = 'Полная версия';
@@ -226,6 +295,39 @@ async function init(){
             window.location.href = './index.html';
         });
     }
+
+    const refreshBtn = q('#debug-refresh');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', () => {
+            const tg = getTg();
+            const initData = getInitData();
+            updateDebug({
+                apiBase: API_BASE || null,
+                telegramObject: !!window.Telegram,
+                webAppObject: !!tg,
+                tgVersion: tg?.version || null,
+                platform: tg?.platform || null,
+                colorScheme: tg?.colorScheme || null,
+                initDataLength: initData.length,
+                unsafeUserId: tg?.initDataUnsafe?.user?.id || null,
+                productIdResolved: resolvedProductId || null,
+            });
+        });
+    }
+
+    const tg = getTg();
+    const initData = getInitData();
+    updateDebug({
+        apiBase: API_BASE || null,
+        telegramObject: !!window.Telegram,
+        webAppObject: !!tg,
+        tgVersion: tg?.version || null,
+        platform: tg?.platform || null,
+        colorScheme: tg?.colorScheme || null,
+        initDataLength: initData.length,
+        unsafeUserId: tg?.initDataUnsafe?.user?.id || null,
+        productIdResolved: resolvedProductId || null,
+    });
 }
 
 init();

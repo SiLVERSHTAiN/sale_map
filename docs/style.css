@@ -567,6 +567,41 @@ a.btn{
   font-size: 13px;
 }
 
+.debug-panel{
+  position: fixed;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  max-height: 42vh;
+  overflow: auto;
+  z-index: 998;
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 12px;
+  background: rgba(5, 10, 24, .9);
+  color: #dbeafe;
+  backdrop-filter: blur(6px);
+}
+
+.debug-head{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255,255,255,.15);
+  font-size: 12px;
+}
+
+.debug-panel pre{
+  margin: 0;
+  padding: 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 11px;
+  line-height: 1.35;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
 .btn.ghost{
   background: transparent;
   box-shadow:none;
