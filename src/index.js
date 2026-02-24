@@ -102,11 +102,26 @@ function isRemoteFile(fileName) {
     return /^https?:\/\//i.test(String(fileName || ""));
 }
 
+function guessFileName(fileName) {
+    const raw = String(fileName || "").trim();
+    if (!raw) return "map.kmz";
+
+    try {
+        const u = new URL(raw);
+        const name = path.basename(u.pathname || "");
+        if (name) return name;
+    } catch {}
+
+    const localName = path.basename(raw);
+    return localName || "map.kmz";
+}
+
 function fileSource(fileName) {
+    const filename = guessFileName(fileName);
     if (isRemoteFile(fileName)) {
-        return { url: String(fileName) };
+        return { url: String(fileName), filename };
     }
-    return { source: fs.createReadStream(resolveAssetFile(fileName)) };
+    return { source: fs.createReadStream(resolveAssetFile(fileName)), filename };
 }
 
 function cityLabel(city) {
