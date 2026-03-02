@@ -2,6 +2,7 @@ const APP_CONFIG = window.APP_CONFIG || {};
 const API_BASE = String(APP_CONFIG.API_BASE || "").replace(/\/$/, "");
 const USDT_ADDRESS = String(APP_CONFIG.USDT_TRC20_ADDRESS || "").trim();
 const USDT_NETWORK = String(APP_CONFIG.USDT_NETWORK || "TRC20").trim() || "TRC20";
+const TRACK_SESSION_KEY = "track.session.v1";
 
 function getTg(){
     return window.Telegram?.WebApp || null;
@@ -58,6 +59,102 @@ async function waitInitData(timeoutMs = 2000){
         await new Promise(r => setTimeout(r, 150));
     }
     return '';
+}
+
+function readTrackSessionId(){
+    try{
+        const v = sessionStorage.getItem(TRACK_SESSION_KEY);
+        return v ? String(v) : null;
+    }catch(e){
+        return null;
+    }
+}
+
+function writeTrackSessionId(sessionId){
+    if (!sessionId) return;
+    try{
+        sessionStorage.setItem(TRACK_SESSION_KEY, String(sessionId));
+    }catch(e){}
+}
+
+function detectPlatform(){
+    const tg = getTg();
+    if (tg?.platform) return String(tg.platform).toLowerCase();
+    const ua = navigator.userAgent.toLowerCase();
+    if (ua.includes('iphone') || ua.includes('ipad') || ua.includes('ipod')) return 'ios';
+    if (ua.includes('android')) return 'android';
+    return 'desktop';
+}
+
+async function trackEvent(eventType, extra = {}){
+    if (!API_BASE || !eventType) return null;
+    const initData = await waitInitData(900);
+    if (!initData) return null;
+    const tg = getTg();
+
+    const body = {
+        initData,
+        eventType: String(eventType),
+        sessionId: extra.sessionId || readTrackSessionId() || undefined,
+        page: extra.page || document.body?.dataset?.page || 'usdt-pay',
+        productId: extra.productId || undefined,
+        city: extra.city || undefined,
+        payload: extra.payload || undefined,
+        platform: detectPlatform(),
+        tgVersion: tg?.version ? String(tg.version) : undefined,
+        colorScheme: tg?.colorScheme ? String(tg.colorScheme) : undefined,
+        isTg: Boolean(tg),
+        startParam: tg?.initDataUnsafe?.start_param
+    };
+
+    try{
+        const res = await fetch(`${API_BASE}/api/track`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.sessionId) {
+            writeTrackSessionId(data.sessionId);
+        }
+        return data;
+    }catch(e){
+        return null;
+    }
+}
+
+async function ensureTrackingSession(page){
+    const existing = readTrackSessionId();
+    if (existing) {
+        void trackEvent('page_view', {
+            page,
+            payload: { path: window.location.pathname, hash: window.location.hash || null }
+        });
+        return existing;
+    }
+    const data = await trackEvent('app_open', {
+        page,
+        payload: { path: window.location.pathname, hash: window.location.hash || null }
+    });
+    return data?.sessionId || null;
+}
+
+function setupSessionEndTracking(page){
+    let sent = false;
+    const sendEnd = (reason) => {
+        if (sent) return;
+        sent = true;
+        void trackEvent('session_end', {
+            page,
+            payload: { reason, path: window.location.pathname, hash: window.location.hash || null }
+        });
+    };
+
+    window.addEventListener('pagehide', () => sendEnd('pagehide'), { once: true });
+    window.addEventListener('beforeunload', () => sendEnd('beforeunload'), { once: true });
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') sendEnd('hidden');
+    });
 }
 
 function q(sel){ return document.querySelector(sel); }
@@ -159,24 +256,51 @@ function normalizeTronTxid(input){
 async function submitRequest(productId){
     const txidRaw = String(q('#txid-input')?.value || '').trim();
     if (!txidRaw) {
+        void trackEvent('usdt_submit_invalid', {
+            page: 'usdt-pay',
+            productId,
+            payload: { reason: 'missing_txid' }
+        });
         setNote('Укажите TXID или ссылку на транзакцию.', false);
         return;
     }
     const txid = normalizeTronTxid(txidRaw);
     if (!txid) {
+        void trackEvent('usdt_submit_invalid', {
+            page: 'usdt-pay',
+            productId,
+            payload: { reason: 'invalid_txid_format', length: txidRaw.length }
+        });
         setNote('Некорректный TXID. Нужен хеш TRON (64 символа) или ссылка на него.', false);
         return;
     }
     if (!API_BASE) {
+        void trackEvent('usdt_submit_failed', {
+            page: 'usdt-pay',
+            productId,
+            payload: { reason: 'api_base_missing' }
+        });
         setNote('Сервис недоступен. Попробуйте позже.', false);
         return;
     }
     const tg = getTg();
     const initData = await waitInitData();
     if (!initData) {
+        void trackEvent('usdt_submit_failed', {
+            page: 'usdt-pay',
+            productId,
+            payload: { reason: 'init_data_missing' }
+        });
         setNote('Не удалось получить данные Telegram (initData). Откройте оплату из витрины заново.', false);
         return;
     }
+
+    void trackEvent('usdt_submit_try', {
+        page: 'usdt-pay',
+        productId,
+        payload: { txidLength: txid.length }
+    });
+
     try{
         const res = await fetch(`${API_BASE}/api/usdt/request`, {
             method: 'POST',
@@ -194,9 +318,18 @@ async function submitRequest(productId){
                 (typeof data?.details === 'string' && data.details) ||
                 (typeof data?.message === 'string' && data.message) ||
                 `HTTP ${res.status}`;
+            void trackEvent('usdt_submit_failed', {
+                page: 'usdt-pay',
+                productId,
+                payload: { reason: details, status: res.status }
+            });
             setNote(`Не удалось отправить заявку. ${details}`, false);
             return;
         }
+        void trackEvent('usdt_submit_success', {
+            page: 'usdt-pay',
+            productId
+        });
         setNote('Заявка отправлена. Мы проверим оплату и пришлём файл в чат.', true);
         const btn = q('#submit-usdt');
         if (btn) btn.disabled = true;
@@ -206,6 +339,11 @@ async function submitRequest(productId){
         try { tg.HapticFeedback?.notificationOccurred('success'); } catch(e){}
     }catch(e){
         const details = e?.message ? `Ошибка сети: ${e.message}` : 'Попробуйте позже.';
+        void trackEvent('usdt_submit_failed', {
+            page: 'usdt-pay',
+            productId,
+            payload: { reason: details }
+        });
         setNote(`Не удалось отправить заявку. ${details}`, false);
     }
 }
@@ -213,6 +351,8 @@ async function submitRequest(productId){
 async function init(){
     applyTelegramTheme();
     installInputDismissal();
+    await ensureTrackingSession('usdt-pay');
+    setupSessionEndTracking('usdt-pay');
     q('#usdt-network').textContent = USDT_NETWORK || 'TRC20';
     q('#usdt-address').value = USDT_ADDRESS;
     setQr(USDT_ADDRESS);
@@ -232,20 +372,40 @@ async function init(){
         if (!product) {
             q('#usdt-product').textContent = 'Полная версия';
             q('#usdt-amount').textContent = '—';
+            void trackEvent('usdt_page_open', {
+                page: 'usdt-pay',
+                payload: { productFound: false }
+            });
         } else {
             const city = cities.find(c => c && c.id === product.cityId);
             const title = city ? `${city.name} — ${product.title || 'Полная версия'}` : (product.title || 'Полная версия');
             q('#usdt-product').textContent = title;
             q('#usdt-amount').textContent = formatUsdt(product.priceUsdt);
             resolvedProductId = product.id || resolvedProductId;
+            void trackEvent('usdt_page_open', {
+                page: 'usdt-pay',
+                productId: resolvedProductId,
+                city: city?.id || undefined,
+                payload: { amountUsdt: Number(product.priceUsdt || 0) || null, productFound: true }
+            });
         }
     }catch{
         q('#usdt-product').textContent = 'Полная версия';
+        void trackEvent('usdt_page_open', {
+            page: 'usdt-pay',
+            productId: resolvedProductId || undefined,
+            payload: { productFound: false, catalogError: true }
+        });
     }
     q('#submit-usdt').addEventListener('click', () => submitRequest(resolvedProductId));
 
     q('#copy-address').addEventListener('click', () => {
         const ok = copyText(USDT_ADDRESS);
+        void trackEvent('usdt_copy_address', {
+            page: 'usdt-pay',
+            productId: resolvedProductId || undefined,
+            payload: { ok }
+        });
         setNote(ok ? 'Адрес скопирован.' : 'Не удалось скопировать адрес.', ok);
     });
 

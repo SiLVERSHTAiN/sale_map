@@ -3,7 +3,13 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 
-import { listPurchasesAsync } from "./storage.js";
+import {
+    createSessionAsync,
+    listPurchasesAsync,
+    touchSessionEndedAsync,
+    trackEventAsync,
+    upsertUserAsync,
+} from "./storage.js";
 
 function timingSafeEqualHex(a, b) {
     const aBuf = Buffer.from(a || "", "hex");
@@ -49,6 +55,41 @@ function parseUserId(data) {
     try {
         const u = JSON.parse(data.user);
         return Number(u?.id) || null;
+    } catch {
+        return null;
+    }
+}
+
+function parseUser(data) {
+    if (!data?.user) return null;
+    try {
+        const u = JSON.parse(data.user);
+        const id = Number(u?.id) || null;
+        if (!id) return null;
+        return {
+            id,
+            username: typeof u?.username === "string" ? u.username : null,
+            languageCode:
+                typeof u?.language_code === "string" ? u.language_code : null,
+        };
+    } catch {
+        return null;
+    }
+}
+
+function normalizeText(value, maxLen = 120) {
+    const s = String(value || "").trim();
+    if (!s) return null;
+    return s.slice(0, maxLen);
+}
+
+function normalizePayload(value, maxLen = 4000) {
+    if (value == null) return null;
+    if (typeof value !== "object") return null;
+    try {
+        const json = JSON.stringify(value);
+        if (json.length <= maxLen) return value;
+        return { truncated: true };
     } catch {
         return null;
     }
@@ -221,6 +262,99 @@ export function startApiServer({
             const purchasesDetailed = await listPurchasesAsync(userId);
             const purchases = purchasesDetailed.map((p) => p.productId);
             return sendJson(res, 200, { ok: true, userId, purchases, purchasesDetailed });
+        }
+
+        if (url.pathname === "/api/track") {
+            if (req.method !== "POST" || !isJsonRequest) {
+                return sendJson(res, 405, { ok: false, error: "method_not_allowed" });
+            }
+
+            const body = await readJsonBody(req);
+            const initData = body?.initData;
+            const eventType = normalizeText(body?.eventType, 80);
+
+            if (!initData || !eventType) {
+                return sendJson(res, 400, { ok: false, error: "initData_or_event_missing" });
+            }
+
+            const verified = verifyInitData(initData, botToken);
+            if (!verified) {
+                return sendJson(res, 401, { ok: false, error: "invalid_init_data" });
+            }
+
+            const user = parseUser(verified);
+            if (!user?.id) {
+                return sendJson(res, 400, { ok: false, error: "user_id_missing" });
+            }
+
+            const sessionIdInput = normalizeText(body?.sessionId, 120);
+            const page = normalizeText(body?.page, 80);
+            const productId = normalizeText(body?.productId, 120);
+            const city = normalizeText(body?.city, 80);
+            const payload = normalizePayload(body?.payload);
+            const platform = normalizeText(body?.platform, 40);
+            const tgVersion = normalizeText(body?.tgVersion, 40);
+            const colorScheme = normalizeText(body?.colorScheme, 20);
+            const startParam = normalizeText(
+                body?.startParam || verified?.start_param,
+                120
+            );
+            const isTg = body?.isTg !== false;
+
+            let sessionId = sessionIdInput;
+            if (eventType === "app_open" && !sessionId) {
+                sessionId = crypto.randomUUID();
+            }
+
+            try {
+                await upsertUserAsync({
+                    userId: user.id,
+                    username: user.username,
+                    languageCode: user.languageCode,
+                    platform,
+                    tgVersion,
+                    startParam,
+                    incrementOpens: eventType === "app_open",
+                });
+
+                if (eventType === "app_open" && sessionId) {
+                    await createSessionAsync({
+                        sessionId,
+                        userId: user.id,
+                        page,
+                        platform,
+                        tgVersion,
+                        colorScheme,
+                        isTg,
+                    });
+                }
+
+                if (eventType === "session_end" && sessionId) {
+                    await touchSessionEndedAsync(sessionId);
+                }
+
+                await trackEventAsync({
+                    userId: user.id,
+                    sessionId: sessionId || null,
+                    eventType,
+                    page,
+                    productId,
+                    city,
+                    payload,
+                });
+            } catch (error) {
+                return sendJson(res, 500, {
+                    ok: false,
+                    error: "track_failed",
+                    details: error?.message || "unknown_error",
+                });
+            }
+
+            return sendJson(res, 200, {
+                ok: true,
+                userId: user.id,
+                sessionId: sessionId || null,
+            });
         }
 
 

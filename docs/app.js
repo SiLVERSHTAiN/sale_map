@@ -5,6 +5,7 @@ const API_BASE = String(APP_CONFIG.API_BASE || "").replace(/\/$/, "");
 const ENTITLEMENTS_KEY = 'entitlements.v2';
 const ENTITLEMENTS_TTL = 10 * 60 * 1000;
 const PENDING_PAYMENT_KEY = 'pending_payment.v1';
+const TRACK_SESSION_KEY = 'track.session.v1';
 
 function applyTelegramTheme(){
     if (!isTg) return;
@@ -58,6 +59,99 @@ async function waitInitData(timeoutMs = 2000){
         await new Promise(r => setTimeout(r, 150));
     }
     return '';
+}
+
+function readTrackSessionId(){
+    try{
+        const v = sessionStorage.getItem(TRACK_SESSION_KEY);
+        return v ? String(v) : null;
+    }catch(e){
+        return null;
+    }
+}
+
+function writeTrackSessionId(sessionId){
+    if (!sessionId) return;
+    try{
+        sessionStorage.setItem(TRACK_SESSION_KEY, String(sessionId));
+    }catch(e){}
+}
+
+async function trackEvent(eventType, extra = {}){
+    if (!API_BASE || !eventType) return null;
+    const initData = await waitInitData(900);
+    if (!initData) return null;
+
+    const body = {
+        initData,
+        eventType: String(eventType),
+        sessionId: extra.sessionId || readTrackSessionId() || undefined,
+        page: extra.page || document.body?.dataset?.page || 'home',
+        productId: extra.productId || undefined,
+        city: extra.city || undefined,
+        payload: extra.payload || undefined,
+        platform: isTg && tg?.platform ? String(tg.platform) : detectPlatform(),
+        tgVersion: isTg && tg?.version ? String(tg.version) : undefined,
+        colorScheme: isTg && tg?.colorScheme ? String(tg.colorScheme) : undefined,
+        isTg,
+        startParam: isTg ? tg?.initDataUnsafe?.start_param : undefined
+    };
+
+    try{
+        const res = await fetch(`${API_BASE}/api/track`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.sessionId) {
+            writeTrackSessionId(data.sessionId);
+        }
+        return data;
+    }catch(e){
+        return null;
+    }
+}
+
+async function ensureTrackingSession(page){
+    const existing = readTrackSessionId();
+    if (existing) {
+        void trackEvent('page_view', {
+            page,
+            payload: { path: window.location.pathname, hash: window.location.hash || null }
+        });
+        return existing;
+    }
+    const data = await trackEvent('app_open', {
+        page,
+        payload: { path: window.location.pathname, hash: window.location.hash || null }
+    });
+    return data?.sessionId || null;
+}
+
+function setupSessionEndTracking(page){
+    let sent = false;
+
+    const sendEnd = (reason) => {
+        if (sent) return;
+        sent = true;
+        void trackEvent('session_end', {
+            page,
+            payload: {
+                reason,
+                path: window.location.pathname,
+                hash: window.location.hash || null
+            }
+        });
+    };
+
+    window.addEventListener('pagehide', () => sendEnd('pagehide'), { once: true });
+    window.addEventListener('beforeunload', () => sendEnd('beforeunload'), { once: true });
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            sendEnd('hidden');
+        }
+    });
 }
 
 async function loadEntitlements(){
@@ -279,6 +373,10 @@ function setupInfoPanel(){
         const item = content[key];
         if (!item) return;
         activeKey = key;
+        void trackEvent('info_open', {
+            page: document.body?.dataset?.page || 'home',
+            payload: { tab: key }
+        });
         if (titleEl) titleEl.textContent = item.title;
         if (bodyEl) bodyEl.innerHTML = item.body;
         panel.classList.add('is-open');
@@ -290,6 +388,12 @@ function setupInfoPanel(){
     }
 
     function closePanel(){
+        if (activeKey) {
+            void trackEvent('info_close', {
+                page: document.body?.dataset?.page || 'home',
+                payload: { tab: activeKey }
+            });
+        }
         activeKey = null;
         panel.classList.remove('is-open');
         document.body.classList.remove('info-open');
@@ -684,6 +788,14 @@ function setActiveCard(next){
     if (current === next) return;
     if (current) current.classList.remove('is-active');
     next.classList.add('is-active');
+
+    const city = String(next.dataset?.city || '').trim();
+    if (city) {
+        void trackEvent('city_focus', {
+            page: document.body?.dataset?.page || 'home',
+            city
+        });
+    }
 }
 
 function setupActiveCardTracking(root){
@@ -753,6 +865,21 @@ function bindButtons(root){
         btn.addEventListener('click', () => {
             const action = btn.getAttribute('data-action');
             const productId = btn.getAttribute('data-product') || undefined;
+            const city = btn.closest('.card')?.dataset?.city || undefined;
+            const actionToEvent = {
+                GET_FILE: 'click_get_file',
+                BUY: 'click_buy_stars',
+                CARD: 'click_buy_card',
+                MANUAL_PAY: 'click_buy_usdt',
+                HOW_TO: 'click_how_to',
+            };
+
+            void trackEvent(actionToEvent[action] || 'click_action', {
+                page: document.body?.dataset?.page || 'home',
+                productId,
+                city,
+                payload: { action }
+            });
             
             haptic('impact', action === 'BUY' ? 'medium' : 'light');
             send(action, productId);
@@ -784,6 +911,8 @@ async function init(){
     setupPendingAutoClose();
     const el = document.getElementById('catalog');
     const page = document.body?.dataset?.page || 'home';
+    await ensureTrackingSession(page);
+    setupSessionEndTracking(page);
     if (el) showSkeleton(el, page);
     try{
         const allowFetchEntitlements = page === 'home';
