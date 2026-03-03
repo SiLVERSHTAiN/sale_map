@@ -30,6 +30,10 @@ const ANALYTICS_ROLLUP_DAYS = clampConfigInt(
 const ANALYTICS_MAINTENANCE_INTERVAL_MS =
     clampConfigInt(process.env.ANALYTICS_MAINTENANCE_INTERVAL_SECONDS, 30, 86400, 300) *
     1000;
+const ANALYTICS_EXCLUDE_USER_IDS = parseAnalyticsExcludeUserIds(
+    process.env.ANALYTICS_EXCLUDE_USER_IDS
+);
+const ANALYTICS_EXCLUDE_USER_IDS_SET = new Set(ANALYTICS_EXCLUDE_USER_IDS);
 
 let analyticsMaintenancePromise = null;
 let analyticsMaintenanceLastAt = 0;
@@ -39,6 +43,26 @@ function clampConfigInt(value, min, max, fallback) {
     if (!Number.isFinite(n)) return fallback;
     const i = Math.floor(n);
     return Math.min(max, Math.max(min, i));
+}
+
+function parseAnalyticsExcludeUserIds(raw) {
+    if (!raw) return [];
+    const set = new Set();
+    for (const chunk of String(raw).split(",")) {
+        const trimmed = chunk.trim();
+        if (!trimmed) continue;
+        const n = Number(trimmed);
+        if (!Number.isFinite(n)) continue;
+        set.add(Math.trunc(n));
+    }
+    return Array.from(set.values());
+}
+
+function isAnalyticsUserExcluded(userId) {
+    if (!ANALYTICS_EXCLUDE_USER_IDS_SET.size) return false;
+    const n = Number(userId);
+    if (!Number.isFinite(n)) return false;
+    return ANALYTICS_EXCLUDE_USER_IDS_SET.has(Math.trunc(n));
 }
 
 function getPool() {
@@ -332,6 +356,7 @@ function upsertUserLocal({
     startParam,
     incrementOpens = false,
 }) {
+    if (isAnalyticsUserExcluded(userId)) return;
     const db = readDb();
     ensureAnalytics(db);
     const key = String(userId);
@@ -373,6 +398,7 @@ export async function upsertUserAsync({
     startParam,
     incrementOpens = false,
 }) {
+    if (isAnalyticsUserExcluded(userId)) return;
     const p = getPool();
     if (!p) {
         return upsertUserLocal({
@@ -429,6 +455,7 @@ function createSessionLocal({
     colorScheme,
     isTg = true,
 }) {
+    if (isAnalyticsUserExcluded(userId)) return;
     const db = readDb();
     ensureAnalytics(db);
     const now = new Date().toISOString();
@@ -455,6 +482,7 @@ export async function createSessionAsync({
     colorScheme,
     isTg = true,
 }) {
+    if (isAnalyticsUserExcluded(userId)) return;
     const p = getPool();
     if (!p) {
         return createSessionLocal({
@@ -520,6 +548,7 @@ function trackEventLocal({
     city = null,
     payload = null,
 }) {
+    if (isAnalyticsUserExcluded(userId)) return;
     const db = readDb();
     ensureAnalytics(db);
     db.analytics.events.push({
@@ -545,6 +574,7 @@ export async function trackEventAsync({
     city = null,
     payload = null,
 }) {
+    if (isAnalyticsUserExcluded(userId)) return;
     const p = getPool();
     if (!p) {
         return trackEventLocal({
@@ -649,6 +679,7 @@ async function runAnalyticsMaintenanceAsync() {
                 COUNT(*) FILTER (WHERE event_type = 'click_get_file') AS free_download_clicks
             FROM events
             WHERE ts >= NOW() - ($1::int * INTERVAL '1 day')
+              AND NOT (user_id = ANY($2::bigint[]))
             GROUP BY 1
         ),
         pur AS (
@@ -657,6 +688,7 @@ async function runAnalyticsMaintenanceAsync() {
                 COUNT(*) AS paid_purchases
             FROM purchases
             WHERE paid_at >= NOW() - ($1::int * INTERVAL '1 day')
+              AND NOT (user_id = ANY($2::bigint[]))
             GROUP BY 1
         ),
         merged AS (
@@ -709,7 +741,7 @@ async function runAnalyticsMaintenanceAsync() {
             paid_purchases = EXCLUDED.paid_purchases,
             computed_at = NOW()
         `,
-        [ANALYTICS_ROLLUP_DAYS]
+        [ANALYTICS_ROLLUP_DAYS, ANALYTICS_EXCLUDE_USER_IDS]
     );
 
     await p.query(
@@ -788,6 +820,7 @@ function localPurchasesAll(db) {
     const rows = [];
     const users = db?.users || {};
     for (const [userIdKey, user] of Object.entries(users)) {
+        if (isAnalyticsUserExcluded(userIdKey)) continue;
         const purchases = user?.purchases || {};
         for (const [productId, purchase] of Object.entries(purchases)) {
             rows.push({
@@ -809,6 +842,7 @@ function buildDailyLocal(events, purchases, days) {
     const dauSets = new Map();
 
     for (const e of events || []) {
+        if (isAnalyticsUserExcluded(e?.userId)) continue;
         const day = toMoscowDayKey(e?.ts);
         if (!day || (minDay && day < minDay) || (today && day > today)) continue;
 
@@ -836,6 +870,7 @@ function buildDailyLocal(events, purchases, days) {
     }
 
     for (const purchase of purchases || []) {
+        if (isAnalyticsUserExcluded(purchase?.userId)) continue;
         const day = toMoscowDayKey(purchase?.paidAt);
         if (!day || (minDay && day < minDay) || (today && day > today)) continue;
         if (!byDay.has(day)) byDay.set(day, emptyDayRow(day));
@@ -950,6 +985,7 @@ function buildTopCitiesLocal(events, days) {
     const minDay = toMoscowDayKey(startDate);
     const counters = new Map();
     for (const e of events || []) {
+        if (isAnalyticsUserExcluded(e?.userId)) continue;
         const day = toMoscowDayKey(e?.ts);
         if (!day || (minDay && day < minDay)) continue;
         const type = String(e?.eventType || "");
@@ -962,6 +998,7 @@ function buildTopCitiesLocal(events, days) {
 
         const city = String(e?.city || "").trim();
         if (!city) continue;
+        if (city.toLowerCase() === "unknown") continue;
         if (!counters.has(city)) {
             counters.set(city, { city, city_focuses: 0, buy_clicks: 0 });
         }
@@ -983,15 +1020,17 @@ function buildTopCitiesLocal(events, days) {
 }
 
 function buildUsersLastSeenLocal(db) {
-    const users = Object.values(db?.analytics?.users || {}).map((u) => ({
-        user_id: Number(u?.userId),
-        username: u?.username || null,
-        language_code: u?.languageCode || null,
-        opens_count: Number(u?.opensCount || 0),
-        last_platform: u?.lastPlatform || null,
-        first_seen_at: u?.firstSeenAt || null,
-        last_seen_at: u?.lastSeenAt || null,
-    }));
+    const users = Object.values(db?.analytics?.users || {})
+        .filter((u) => !isAnalyticsUserExcluded(u?.userId))
+        .map((u) => ({
+            user_id: Number(u?.userId),
+            username: u?.username || null,
+            language_code: u?.languageCode || null,
+            opens_count: Number(u?.opensCount || 0),
+            last_platform: u?.lastPlatform || null,
+            first_seen_at: u?.firstSeenAt || null,
+            last_seen_at: u?.lastSeenAt || null,
+        }));
     users.sort((a, b) => String(b.last_seen_at || "").localeCompare(String(a.last_seen_at || "")));
     return users;
 }
@@ -1004,7 +1043,9 @@ function getAdminAnalyticsLocal({ days, topCitiesLimit, usersLimit }) {
     const daily = buildDailyLocal(events, purchases, days);
     const topCities = buildTopCitiesLocal(events, days).slice(0, topCitiesLimit);
     const usersLastSeen = buildUsersLastSeenLocal(db).slice(0, usersLimit);
-    const usersTotal = Object.keys(db?.analytics?.users || {}).length;
+    const usersTotal = Object.values(db?.analytics?.users || {}).filter(
+        (u) => !isAnalyticsUserExcluded(u?.userId)
+    ).length;
     const buyersSet = new Set(purchases.map((p) => Number(p.userId)).filter((v) => Number.isFinite(v)));
     return {
         generatedAt: new Date().toISOString(),
@@ -1071,11 +1112,13 @@ export async function getAdminAnalyticsAsync(options = {}) {
         WHERE ts >= NOW() - ($1::int * INTERVAL '1 day')
           AND event_type IN ('city_focus', 'click_buy_card', 'click_buy_usdt', 'click_buy_stars')
           AND NULLIF(TRIM(city), '') IS NOT NULL
+          AND LOWER(TRIM(city)) <> 'unknown'
+          AND NOT (user_id = ANY($3::bigint[]))
         GROUP BY 1
         ORDER BY buy_clicks DESC, city_focuses DESC, city ASC
         LIMIT $2
         `,
-        [days, topCitiesLimit]
+        [days, topCitiesLimit, ANALYTICS_EXCLUDE_USER_IDS]
     );
 
     const usersRes = await p.query(
@@ -1089,19 +1132,21 @@ export async function getAdminAnalyticsAsync(options = {}) {
             first_seen_at,
             last_seen_at
         FROM users
+        WHERE NOT (user_id = ANY($2::bigint[]))
         ORDER BY last_seen_at DESC
         LIMIT $1
         `,
-        [usersLimit]
+        [usersLimit, ANALYTICS_EXCLUDE_USER_IDS]
     );
 
     const summaryRes = await p.query(
         `
         SELECT
-            (SELECT COUNT(*)::int FROM users) AS users_total,
-            (SELECT COUNT(*)::int FROM purchases) AS purchases_total,
-            (SELECT COUNT(DISTINCT user_id)::int FROM purchases) AS buyers_total
-        `
+            (SELECT COUNT(*)::int FROM users WHERE NOT (user_id = ANY($1::bigint[]))) AS users_total,
+            (SELECT COUNT(*)::int FROM purchases WHERE NOT (user_id = ANY($1::bigint[]))) AS purchases_total,
+            (SELECT COUNT(DISTINCT user_id)::int FROM purchases WHERE NOT (user_id = ANY($1::bigint[]))) AS buyers_total
+        `,
+        [ANALYTICS_EXCLUDE_USER_IDS]
     );
 
     const weeklyRes = await p.query(

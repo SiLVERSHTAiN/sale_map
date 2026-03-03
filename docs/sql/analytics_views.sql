@@ -148,6 +148,7 @@ SELECT
 FROM events
 WHERE event_type IN ('city_focus', 'click_buy_card', 'click_buy_usdt', 'click_buy_stars')
   AND NULLIF(TRIM(city), '') IS NOT NULL
+  AND LOWER(TRIM(city)) <> 'unknown'
 GROUP BY 1
 ORDER BY buy_clicks DESC, city_focuses DESC;
 

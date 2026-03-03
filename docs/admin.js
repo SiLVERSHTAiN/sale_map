@@ -241,7 +241,7 @@ function renderCities(rows) {
         .map(
             (row) => `
             <tr>
-                <td>${row.city || "unknown"}</td>
+                <td>${row.city || "—"}</td>
                 <td>${numberFmt.format(toInt(row.city_focuses))}</td>
                 <td>${numberFmt.format(toInt(row.buy_clicks))}</td>
             </tr>
