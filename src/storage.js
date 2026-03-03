@@ -952,12 +952,20 @@ function buildTopCitiesLocal(events, days) {
     for (const e of events || []) {
         const day = toMoscowDayKey(e?.ts);
         if (!day || (minDay && day < minDay)) continue;
-        const city = String(e?.city || "").trim() || "unknown";
+        const type = String(e?.eventType || "");
+        const isCityMetricType =
+            type === "city_focus" ||
+            type === "click_buy_card" ||
+            type === "click_buy_usdt" ||
+            type === "click_buy_stars";
+        if (!isCityMetricType) continue;
+
+        const city = String(e?.city || "").trim();
+        if (!city) continue;
         if (!counters.has(city)) {
             counters.set(city, { city, city_focuses: 0, buy_clicks: 0 });
         }
         const row = counters.get(city);
-        const type = String(e?.eventType || "");
         if (type === "city_focus") row.city_focuses += 1;
         if (
             type === "click_buy_card" ||
@@ -1054,13 +1062,15 @@ export async function getAdminAnalyticsAsync(options = {}) {
     const topCitiesRes = await p.query(
         `
         SELECT
-            COALESCE(NULLIF(city, ''), 'unknown') AS city,
+            NULLIF(TRIM(city), '') AS city,
             COUNT(*) FILTER (WHERE event_type = 'city_focus') AS city_focuses,
             COUNT(*) FILTER (
                 WHERE event_type IN ('click_buy_card', 'click_buy_usdt', 'click_buy_stars')
             ) AS buy_clicks
         FROM events
         WHERE ts >= NOW() - ($1::int * INTERVAL '1 day')
+          AND event_type IN ('city_focus', 'click_buy_card', 'click_buy_usdt', 'click_buy_stars')
+          AND NULLIF(TRIM(city), '') IS NOT NULL
         GROUP BY 1
         ORDER BY buy_clicks DESC, city_focuses DESC, city ASC
         LIMIT $2
