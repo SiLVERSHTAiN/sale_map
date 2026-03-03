@@ -5,6 +5,7 @@ import path from "path";
 
 import {
     createSessionAsync,
+    getAdminAnalyticsAsync,
     listPurchasesAsync,
     touchSessionEndedAsync,
     trackEventAsync,
@@ -14,6 +15,14 @@ import {
 function timingSafeEqualHex(a, b) {
     const aBuf = Buffer.from(a || "", "hex");
     const bBuf = Buffer.from(b || "", "hex");
+    if (aBuf.length !== bBuf.length) return false;
+    return crypto.timingSafeEqual(aBuf, bBuf);
+}
+
+function timingSafeEqualString(a, b) {
+    if (typeof a !== "string" || typeof b !== "string") return false;
+    const aBuf = Buffer.from(a, "utf8");
+    const bBuf = Buffer.from(b, "utf8");
     if (aBuf.length !== bBuf.length) return false;
     return crypto.timingSafeEqual(aBuf, bBuf);
 }
@@ -98,7 +107,7 @@ function normalizePayload(value, maxLen = 4000) {
 function setCors(res) {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "content-type");
+    res.setHeader("Access-Control-Allow-Headers", "content-type,authorization");
 }
 
 function sendJson(res, status, payload) {
@@ -125,6 +134,13 @@ function readJsonBody(req) {
             }
         });
     });
+}
+
+function getBearerTokenFromHeader(req) {
+    const value = String(req.headers?.authorization || "").trim();
+    if (!value) return "";
+    const match = value.match(/^Bearer\s+(.+)$/i);
+    return match ? String(match[1] || "").trim() : "";
 }
 
 function readRawBody(req) {
@@ -236,6 +252,43 @@ export function startApiServer({
 
         if (url.pathname === "/health" || url.pathname === "/api/health") {
             return sendJson(res, 200, { ok: true });
+        }
+
+        if (url.pathname === "/api/admin/analytics") {
+            if (req.method !== "GET") {
+                return sendJson(res, 405, { ok: false, error: "method_not_allowed" });
+            }
+
+            const expectedToken = String(process.env.ADMIN_ANALYTICS_TOKEN || "").trim();
+            if (!expectedToken) {
+                return sendJson(res, 503, { ok: false, error: "admin_token_missing" });
+            }
+
+            const bearer = getBearerTokenFromHeader(req);
+            const queryToken = String(url.searchParams.get("token") || "").trim();
+            const providedToken = bearer || queryToken;
+
+            if (!providedToken || !timingSafeEqualString(providedToken, expectedToken)) {
+                return sendJson(res, 401, { ok: false, error: "unauthorized" });
+            }
+
+            const days = Number(url.searchParams.get("days") || 30);
+            const topCitiesLimit = Number(url.searchParams.get("topCitiesLimit") || 15);
+            const usersLimit = Number(url.searchParams.get("usersLimit") || 50);
+            try {
+                const data = await getAdminAnalyticsAsync({
+                    days,
+                    topCitiesLimit,
+                    usersLimit,
+                });
+                return sendJson(res, 200, { ok: true, ...data });
+            } catch (error) {
+                return sendJson(res, 500, {
+                    ok: false,
+                    error: "analytics_failed",
+                    details: error?.message || "unknown_error",
+                });
+            }
         }
 
         if (url.pathname === "/api/entitlements") {

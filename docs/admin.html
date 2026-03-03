@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>Sale Maps · Админка</title>
+    <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+    <div class="wrap admin-wrap">
+        <div class="top">
+            <div class="brand">
+                <h1>Sale Maps · Админка</h1>
+                <p>Внутренняя аналитика витрины</p>
+            </div>
+            <a class="chip" href="./index.html">🏠 Витрина</a>
+        </div>
+
+        <section class="card">
+            <div class="admin-filters">
+                <div class="field">
+                    <label for="admin-api-base">API Base</label>
+                    <input id="admin-api-base" type="text" autocomplete="off" placeholder="https://api.example.com" />
+                </div>
+                <div class="field">
+                    <label for="admin-token">Admin token</label>
+                    <input id="admin-token" type="password" autocomplete="off" placeholder="ADMIN_ANALYTICS_TOKEN" />
+                </div>
+                <div class="field field-days">
+                    <label for="admin-days">Период (дни)</label>
+                    <input id="admin-days" type="number" min="1" max="120" value="30" />
+                </div>
+            </div>
+            <div class="admin-actions">
+                <button id="admin-refresh" class="btn primary inline" type="button">Обновить</button>
+                <span id="admin-meta" class="admin-meta">—</span>
+            </div>
+            <div id="admin-error" class="error hidden"></div>
+        </section>
+
+        <section id="admin-summary" class="admin-kpi-grid"></section>
+
+        <section class="card">
+            <div class="admin-table-head">
+                <h2>Дневная метрика</h2>
+            </div>
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Дата</th>
+                            <th>DAU</th>
+                            <th>Открытия</th>
+                            <th>Клик карта</th>
+                            <th>Клик USDT</th>
+                            <th>Клик Stars</th>
+                            <th>USDT заявки</th>
+                            <th>Free клики</th>
+                            <th>Оплат</th>
+                        </tr>
+                    </thead>
+                    <tbody id="admin-daily-body"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="admin-table-head">
+                <h2>Недельная сводка</h2>
+            </div>
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Неделя</th>
+                            <th>Ср. DAU</th>
+                            <th>Пик DAU</th>
+                            <th>Открытия</th>
+                            <th>Клик карта</th>
+                            <th>Клик USDT</th>
+                            <th>Клик Stars</th>
+                            <th>USDT заявки</th>
+                            <th>Free клики</th>
+                            <th>Оплат</th>
+                        </tr>
+                    </thead>
+                    <tbody id="admin-weekly-body"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="admin-table-head">
+                <h2>Месячная сводка</h2>
+            </div>
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Месяц</th>
+                            <th>Ср. DAU</th>
+                            <th>Пик DAU</th>
+                            <th>Открытия</th>
+                            <th>Клик карта</th>
+                            <th>Клик USDT</th>
+                            <th>Клик Stars</th>
+                            <th>USDT заявки</th>
+                            <th>Free клики</th>
+                            <th>Оплат</th>
+                        </tr>
+                    </thead>
+                    <tbody id="admin-monthly-body"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="admin-table-head">
+                <h2>Топ городов</h2>
+            </div>
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Город</th>
+                            <th>Фокус</th>
+                            <th>Клики “Купить”</th>
+                        </tr>
+                    </thead>
+                    <tbody id="admin-cities-body"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="admin-table-head">
+                <h2>Пользователи (последние)</h2>
+            </div>
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>User ID</th>
+                            <th>Username</th>
+                            <th>Язык</th>
+                            <th>Открытия</th>
+                            <th>Платформа</th>
+                            <th>Последний визит</th>
+                        </tr>
+                    </thead>
+                    <tbody id="admin-users-body"></tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <script src="./config.js"></script>
+    <script src="./admin.js" defer></script>
+</body>
+</html>
