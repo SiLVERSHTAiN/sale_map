@@ -1,6 +1,6 @@
 {
     "cities": [
-        { "id":"astana", "name":"Астана", "country":"KZ", "active": true },
+        { "id":"astana", "name":"Астана + Бурабай", "country":"KZ", "active": true },
         { "id": "batumi", "name": "Батуми", "country": "GE", "active": true },
         { "id":"kaliningrad", "name":"Калининград + Область", "country":"RU", "active": true },
         { "id":"tbilisi", "name":"Тбилиси", "country":"GE", "active": true }
@@ -24,10 +24,10 @@
             "type": "full",
             "title": "Полная версия",
             "subtitle": "900 ⭐ Stars",
-            "priceStars": 700,
-            "priceRub": 790,
-            "priceRubOld": 1290,
-            "priceUsdt": 13,
+            "priceStars": 900,
+            "priceRub": 990,
+            "priceRubOld": 1490,
+            "priceUsdt": 15,
             "payUrl": "",
             "updatedAt": "2026-02-07T00:00:00Z",
             "file": "https://pub-88906c2943024ae0a8acd2a4942d3a0e.r2.dev/astana-full.kmz",
