@@ -1,10 +1,38 @@
 {
     "cities": [
+        { "id":"astana", "name":"Астана", "country":"KZ", "active": true },
         { "id": "batumi", "name": "Батуми", "country": "GE", "active": true },
-        { "id":"tbilisi", "name":"Тбилиси", "country":"GE", "active": true },
-        { "id":"kaliningrad", "name":"Калининград + Область", "country":"RU", "active": true }
+        { "id":"kaliningrad", "name":"Калининград + Область", "country":"RU", "active": true },
+        { "id":"tbilisi", "name":"Тбилиси", "country":"GE", "active": true }
     ],
     "products": [
+        {
+            "id": "astana_mini",
+            "cityId": "astana",
+            "type": "mini",
+            "title": "Mini-версия",
+            "subtitle": "Бесплатно ✅",
+            "description": "Короткий набор ключевых мест: еда, виды, прогулки и полезные точки.",
+            "priceStars": 0,
+            "updatedAt": "2026-02-07T00:00:00Z",
+            "file": "https://pub-88906c2943024ae0a8acd2a4942d3a0e.r2.dev/astana-mini.kmz",
+            "active": true
+        },
+        {
+            "id": "astana_full",
+            "cityId": "astana",
+            "type": "full",
+            "title": "Полная версия",
+            "subtitle": "900 ⭐ Stars",
+            "priceStars": 700,
+            "priceRub": 790,
+            "priceRubOld": 1290,
+            "priceUsdt": 13,
+            "payUrl": "",
+            "updatedAt": "2026-02-07T00:00:00Z",
+            "file": "https://pub-88906c2943024ae0a8acd2a4942d3a0e.r2.dev/astana-full.kmz",
+            "active": true
+        },
         {
             "id": "batumi_mini",
             "cityId": "batumi",
@@ -33,33 +61,6 @@
             "active": true
         },
         {
-            "id": "tbilisi_mini",
-            "cityId": "tbilisi",
-            "type": "mini",
-            "title": "Mini-версия",
-            "subtitle": "Бесплатно ✅",
-            "description": "Короткий набор ключевых мест: еда, виды, прогулки и полезные точки.",
-            "priceStars": 0,
-            "updatedAt": "2026-02-07T00:00:00Z",
-            "file": "https://pub-88906c2943024ae0a8acd2a4942d3a0e.r2.dev/tbilisi-mini.kmz",
-            "active": true
-        },
-        {
-            "id":"tbilisi_full",
-            "cityId":"tbilisi",
-            "type":"full",
-            "title":"Полная версия",
-            "subtitle":"900 ⭐ Stars",
-            "priceStars":900,
-            "priceRub": 990,
-            "priceRubOld": 1490,
-            "priceUsdt": 15,
-            "payUrl": "",
-            "updatedAt": "2026-02-07T00:00:00Z",
-            "file":"https://pub-88906c2943024ae0a8acd2a4942d3a0e.r2.dev/tbilisi-full.kmz",
-            "active": true
-        },
-        {
             "id": "kaliningrad_mini",
             "cityId": "kaliningrad",
             "type": "mini",
@@ -84,6 +85,33 @@
             "payUrl": "",
             "updatedAt": "2026-02-07T00:00:00Z",
             "file":"https://pub-88906c2943024ae0a8acd2a4942d3a0e.r2.dev/kaliningrad-full.kmz",
+            "active": true
+        },
+        {
+            "id": "tbilisi_mini",
+            "cityId": "tbilisi",
+            "type": "mini",
+            "title": "Mini-версия",
+            "subtitle": "Бесплатно ✅",
+            "description": "Короткий набор ключевых мест: еда, виды, прогулки и полезные точки.",
+            "priceStars": 0,
+            "updatedAt": "2026-02-07T00:00:00Z",
+            "file": "https://pub-88906c2943024ae0a8acd2a4942d3a0e.r2.dev/tbilisi-mini.kmz",
+            "active": true
+        },
+        {
+            "id":"tbilisi_full",
+            "cityId":"tbilisi",
+            "type":"full",
+            "title":"Полная версия",
+            "subtitle":"900 ⭐ Stars",
+            "priceStars":900,
+            "priceRub": 990,
+            "priceRubOld": 1490,
+            "priceUsdt": 15,
+            "payUrl": "",
+            "updatedAt": "2026-02-07T00:00:00Z",
+            "file":"https://pub-88906c2943024ae0a8acd2a4942d3a0e.r2.dev/tbilisi-full.kmz",
             "active": true
         }
     ]
