@@ -37,6 +37,8 @@ const ANALYTICS_EXCLUDE_USER_IDS_SET = new Set(ANALYTICS_EXCLUDE_USER_IDS);
 
 let analyticsMaintenancePromise = null;
 let analyticsMaintenanceLastAt = 0;
+let catalogProductCityMapCache = null;
+let catalogProductCityMapMtimeMs = null;
 
 function clampConfigInt(value, min, max, fallback) {
     const n = Number(value);
@@ -197,6 +199,39 @@ function ensureDb() {
 function readDb() {
     ensureDb();
     return JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+}
+
+function readCatalogProductCityMap() {
+    const file = path.resolve(process.env.CATALOG_PATH || "./docs/products.json");
+    try {
+        const stat = fs.statSync(file);
+        if (catalogProductCityMapCache && catalogProductCityMapMtimeMs === stat.mtimeMs) {
+            return catalogProductCityMapCache;
+        }
+        const data = JSON.parse(fs.readFileSync(file, "utf-8"));
+        const map = new Map();
+        for (const product of Array.isArray(data?.products) ? data.products : []) {
+            const productId = String(product?.id || "").trim();
+            const cityId = String(product?.cityId || "").trim();
+            if (!productId || !cityId) continue;
+            map.set(productId, cityId);
+        }
+        catalogProductCityMapCache = map;
+        catalogProductCityMapMtimeMs = stat.mtimeMs;
+        return map;
+    } catch {
+        return catalogProductCityMapCache || new Map();
+    }
+}
+
+function resolveAnalyticsCity(event, productCityMap = readCatalogProductCityMap()) {
+    const directCity = String(event?.city || "").trim();
+    if (directCity && directCity.toLowerCase() !== "unknown") return directCity;
+    const productId = String(event?.productId || event?.product_id || "").trim();
+    if (!productId) return "";
+    const fallbackCity = String(productCityMap.get(productId) || "").trim();
+    if (!fallbackCity || fallbackCity.toLowerCase() === "unknown") return "";
+    return fallbackCity;
 }
 
 function writeDb(db) {
@@ -984,6 +1019,7 @@ function buildTopCitiesLocal(events, days) {
     const startDate = new Date(Date.now() - (days - 1) * 24 * 60 * 60 * 1000);
     const minDay = toMoscowDayKey(startDate);
     const counters = new Map();
+    const productCityMap = readCatalogProductCityMap();
     for (const e of events || []) {
         if (isAnalyticsUserExcluded(e?.userId)) continue;
         const day = toMoscowDayKey(e?.ts);
@@ -997,9 +1033,8 @@ function buildTopCitiesLocal(events, days) {
             type === "click_buy_stars";
         if (!isCityMetricType) continue;
 
-        const city = String(e?.city || "").trim();
+        const city = resolveAnalyticsCity(e, productCityMap);
         if (!city) continue;
-        if (city.toLowerCase() === "unknown") continue;
         if (!counters.has(city)) {
             counters.set(city, { city, city_focuses: 0, free_clicks: 0, buy_clicks: 0 });
         }
@@ -1103,27 +1138,31 @@ export async function getAdminAnalyticsAsync(options = {}) {
         [days]
     );
 
-    const topCitiesRes = await p.query(
+    const topCitiesEventsRes = await p.query(
         `
         SELECT
+            ts,
+            user_id,
+            event_type,
             NULLIF(TRIM(city), '') AS city,
-            COUNT(*) FILTER (WHERE event_type = 'city_focus') AS city_focuses,
-            COUNT(*) FILTER (WHERE event_type = 'click_get_file') AS free_clicks,
-            COUNT(*) FILTER (
-                WHERE event_type IN ('click_buy_card', 'click_buy_usdt', 'click_buy_stars')
-            ) AS buy_clicks
+            product_id
         FROM events
         WHERE ts >= NOW() - ($1::int * INTERVAL '1 day')
           AND event_type IN ('city_focus', 'click_get_file', 'click_buy_card', 'click_buy_usdt', 'click_buy_stars')
-          AND NULLIF(TRIM(city), '') IS NOT NULL
-          AND LOWER(TRIM(city)) <> 'unknown'
-          AND NOT (user_id = ANY($3::bigint[]))
-        GROUP BY 1
-        ORDER BY buy_clicks DESC, free_clicks DESC, city_focuses DESC, city ASC
-        LIMIT $2
+          AND NOT (user_id = ANY($2::bigint[]))
         `,
-        [days, topCitiesLimit, ANALYTICS_EXCLUDE_USER_IDS]
+        [days, ANALYTICS_EXCLUDE_USER_IDS]
     );
+    const topCities = buildTopCitiesLocal(
+        topCitiesEventsRes.rows.map((row) => ({
+            ts: row.ts,
+            userId: Number(row.user_id),
+            eventType: row.event_type,
+            city: row.city,
+            productId: row.product_id,
+        })),
+        days
+    ).slice(0, topCitiesLimit);
 
     const usersRes = await p.query(
         `
@@ -1272,12 +1311,7 @@ export async function getAdminAnalyticsAsync(options = {}) {
             free_download_clicks: Number(row.free_download_clicks || 0),
             paid_purchases: Number(row.paid_purchases || 0),
         })),
-        topCities: topCitiesRes.rows.map((row) => ({
-            city: row.city,
-            city_focuses: Number(row.city_focuses || 0),
-            free_clicks: Number(row.free_clicks || 0),
-            buy_clicks: Number(row.buy_clicks || 0),
-        })),
+        topCities,
         usersLastSeen: usersRes.rows.map((row) => ({
             user_id: Number(row.user_id),
             username: row.username || null,
