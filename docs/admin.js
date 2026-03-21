@@ -231,7 +231,7 @@ function renderCities(rows) {
     if (!rows?.length) {
         el.citiesBody.innerHTML = `
             <tr>
-                <td class="admin-empty" colspan="3">Пока нет данных.</td>
+                <td class="admin-empty" colspan="4">Пока нет данных.</td>
             </tr>
         `;
         return;
@@ -243,6 +243,7 @@ function renderCities(rows) {
             <tr>
                 <td>${row.city || "—"}</td>
                 <td>${numberFmt.format(toInt(row.city_focuses))}</td>
+                <td>${numberFmt.format(toInt(row.free_clicks))}</td>
                 <td>${numberFmt.format(toInt(row.buy_clicks))}</td>
             </tr>
         `

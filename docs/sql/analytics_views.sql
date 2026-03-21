@@ -142,15 +142,16 @@ CREATE OR REPLACE VIEW analytics_top_cities AS
 SELECT
     NULLIF(TRIM(city), '') AS city,
     COUNT(*) FILTER (WHERE event_type = 'city_focus') AS city_focuses,
+    COUNT(*) FILTER (WHERE event_type = 'click_get_file') AS free_clicks,
     COUNT(*) FILTER (
         WHERE event_type IN ('click_buy_card', 'click_buy_usdt', 'click_buy_stars')
     ) AS buy_clicks
 FROM events
-WHERE event_type IN ('city_focus', 'click_buy_card', 'click_buy_usdt', 'click_buy_stars')
+WHERE event_type IN ('city_focus', 'click_get_file', 'click_buy_card', 'click_buy_usdt', 'click_buy_stars')
   AND NULLIF(TRIM(city), '') IS NOT NULL
   AND LOWER(TRIM(city)) <> 'unknown'
 GROUP BY 1
-ORDER BY buy_clicks DESC, city_focuses DESC;
+ORDER BY buy_clicks DESC, free_clicks DESC, city_focuses DESC;
 
 CREATE OR REPLACE VIEW analytics_users_last_seen AS
 SELECT

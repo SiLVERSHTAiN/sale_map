@@ -991,6 +991,7 @@ function buildTopCitiesLocal(events, days) {
         const type = String(e?.eventType || "");
         const isCityMetricType =
             type === "city_focus" ||
+            type === "click_get_file" ||
             type === "click_buy_card" ||
             type === "click_buy_usdt" ||
             type === "click_buy_stars";
@@ -1000,10 +1001,11 @@ function buildTopCitiesLocal(events, days) {
         if (!city) continue;
         if (city.toLowerCase() === "unknown") continue;
         if (!counters.has(city)) {
-            counters.set(city, { city, city_focuses: 0, buy_clicks: 0 });
+            counters.set(city, { city, city_focuses: 0, free_clicks: 0, buy_clicks: 0 });
         }
         const row = counters.get(city);
         if (type === "city_focus") row.city_focuses += 1;
+        if (type === "click_get_file") row.free_clicks += 1;
         if (
             type === "click_buy_card" ||
             type === "click_buy_usdt" ||
@@ -1014,6 +1016,7 @@ function buildTopCitiesLocal(events, days) {
     }
     return Array.from(counters.values()).sort((a, b) => {
         if (b.buy_clicks !== a.buy_clicks) return b.buy_clicks - a.buy_clicks;
+        if (b.free_clicks !== a.free_clicks) return b.free_clicks - a.free_clicks;
         if (b.city_focuses !== a.city_focuses) return b.city_focuses - a.city_focuses;
         return String(a.city).localeCompare(String(b.city));
     });
@@ -1105,17 +1108,18 @@ export async function getAdminAnalyticsAsync(options = {}) {
         SELECT
             NULLIF(TRIM(city), '') AS city,
             COUNT(*) FILTER (WHERE event_type = 'city_focus') AS city_focuses,
+            COUNT(*) FILTER (WHERE event_type = 'click_get_file') AS free_clicks,
             COUNT(*) FILTER (
                 WHERE event_type IN ('click_buy_card', 'click_buy_usdt', 'click_buy_stars')
             ) AS buy_clicks
         FROM events
         WHERE ts >= NOW() - ($1::int * INTERVAL '1 day')
-          AND event_type IN ('city_focus', 'click_buy_card', 'click_buy_usdt', 'click_buy_stars')
+          AND event_type IN ('city_focus', 'click_get_file', 'click_buy_card', 'click_buy_usdt', 'click_buy_stars')
           AND NULLIF(TRIM(city), '') IS NOT NULL
           AND LOWER(TRIM(city)) <> 'unknown'
           AND NOT (user_id = ANY($3::bigint[]))
         GROUP BY 1
-        ORDER BY buy_clicks DESC, city_focuses DESC, city ASC
+        ORDER BY buy_clicks DESC, free_clicks DESC, city_focuses DESC, city ASC
         LIMIT $2
         `,
         [days, topCitiesLimit, ANALYTICS_EXCLUDE_USER_IDS]
@@ -1271,6 +1275,7 @@ export async function getAdminAnalyticsAsync(options = {}) {
         topCities: topCitiesRes.rows.map((row) => ({
             city: row.city,
             city_focuses: Number(row.city_focuses || 0),
+            free_clicks: Number(row.free_clicks || 0),
             buy_clicks: Number(row.buy_clicks || 0),
         })),
         usersLastSeen: usersRes.rows.map((row) => ({
