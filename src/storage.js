@@ -695,6 +695,130 @@ export async function logNotificationAsync({
     );
 }
 
+function listCardCheckoutRecoveryCandidatesLocal({
+    fromTs,
+    toTs,
+    campaignId = null,
+    limit = 200,
+}) {
+    const db = readDb();
+    ensureAnalytics(db);
+
+    const fromMs = Date.parse(fromTs);
+    const toMs = Date.parse(toTs);
+    if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || fromMs >= toMs) return [];
+
+    const purchasesByUserProduct = new Set();
+    for (const [userIdKey, user] of Object.entries(db?.users || {})) {
+        if (isAnalyticsUserExcluded(userIdKey)) continue;
+        for (const productId of Object.keys(user?.purchases || {})) {
+            purchasesByUserProduct.add(`${userIdKey}:${productId}`);
+        }
+    }
+
+    const alreadyNotifiedUsers = new Set();
+    if (campaignId) {
+        for (const row of db.analytics.notificationLog || []) {
+            if (String(row?.campaignId || "") !== String(campaignId)) continue;
+            if (String(row?.status || "") !== "sent") continue;
+            alreadyNotifiedUsers.add(Number(row?.userId));
+        }
+    }
+
+    const latestByUser = new Map();
+    for (const event of db.analytics.events || []) {
+        const userId = Number(event?.userId);
+        if (!Number.isFinite(userId) || isAnalyticsUserExcluded(userId)) continue;
+        if (String(event?.eventType || "") !== "click_buy_card") continue;
+        const tsMs = Date.parse(event?.ts);
+        if (!Number.isFinite(tsMs) || tsMs < fromMs || tsMs >= toMs) continue;
+        if (alreadyNotifiedUsers.has(userId)) continue;
+
+        const user = db.analytics.users?.[String(userId)];
+        if (user?.canNotify === false) continue;
+
+        const productId = String(event?.productId || "").trim();
+        if (!productId) continue;
+        if (purchasesByUserProduct.has(`${userId}:${productId}`)) continue;
+
+        const current = latestByUser.get(userId);
+        if (!current || String(event?.ts || "") > String(current.lastEventAt || "")) {
+            latestByUser.set(userId, {
+                userId,
+                username: user?.username || null,
+                productId,
+                city: resolveAnalyticsCity(event),
+                lastEventAt: event?.ts || null,
+            });
+        }
+    }
+
+    return Array.from(latestByUser.values())
+        .sort((a, b) => String(b.lastEventAt || "").localeCompare(String(a.lastEventAt || "")))
+        .slice(0, clampInt(limit, 1, 5000, 200));
+}
+
+export async function listCardCheckoutRecoveryCandidatesAsync({
+    fromTs,
+    toTs,
+    campaignId = null,
+    limit = 200,
+}) {
+    const p = getPool();
+    if (!p) {
+        return listCardCheckoutRecoveryCandidatesLocal({ fromTs, toTs, campaignId, limit });
+    }
+    await ensurePgSchema();
+    const res = await p.query(
+        `
+        WITH latest_clicks AS (
+            SELECT DISTINCT ON (e.user_id)
+                e.user_id,
+                u.username,
+                e.product_id,
+                NULLIF(TRIM(e.city), '') AS city,
+                e.ts AS last_event_at
+            FROM events e
+            JOIN users u ON u.user_id = e.user_id
+            LEFT JOIN purchases p
+                ON p.user_id = e.user_id
+               AND p.product_id = e.product_id
+            LEFT JOIN notification_log nl
+                ON nl.user_id = e.user_id
+               AND nl.campaign_id IS NOT DISTINCT FROM $3::text
+               AND nl.channel = 'telegram'
+               AND nl.status = 'sent'
+            WHERE e.event_type = 'click_buy_card'
+              AND e.ts >= $1::timestamptz
+              AND e.ts < $2::timestamptz
+              AND COALESCE(u.can_notify, TRUE) = TRUE
+              AND p.user_id IS NULL
+              AND ($3::text IS NULL OR nl.user_id IS NULL)
+              AND NOT (e.user_id = ANY($5::bigint[]))
+            ORDER BY e.user_id, e.ts DESC
+        )
+        SELECT
+            user_id,
+            username,
+            product_id,
+            city,
+            last_event_at
+        FROM latest_clicks
+        ORDER BY last_event_at DESC
+        LIMIT $4
+        `,
+        [fromTs, toTs, campaignId || null, clampInt(limit, 1, 5000, 200), ANALYTICS_EXCLUDE_USER_IDS]
+    );
+
+    return res.rows.map((row) => ({
+        userId: Number(row.user_id),
+        username: row.username || null,
+        productId: row.product_id || null,
+        city: row.city || resolveAnalyticsCity(row),
+        lastEventAt: row.last_event_at ? new Date(row.last_event_at).toISOString() : null,
+    }));
+}
+
 async function runAnalyticsMaintenanceAsync() {
     const p = getPool();
     if (!p) return;

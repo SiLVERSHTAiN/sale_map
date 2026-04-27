@@ -6,6 +6,8 @@ import { nanoid } from "nanoid";
 
 import {
     hasPurchaseAsync,
+    listCardCheckoutRecoveryCandidatesAsync,
+    logNotificationAsync,
     markDownloadAsync,
     removePurchaseAsync,
     storePurchaseAsync,
@@ -143,6 +145,96 @@ function parseTxidFromAdminMessage(text) {
     const txid = String(m[1] || "").trim();
     if (!txid || txid === "-") return null;
     return txid;
+}
+
+function parseIsoDateArg(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return null;
+    const ts = Date.parse(raw);
+    if (!Number.isFinite(ts)) return null;
+    return new Date(ts).toISOString();
+}
+
+function buildCardFixCampaignId(fromTs, toTs) {
+    return `card_fix:${fromTs}:${toTs}`;
+}
+
+function formatPreviewTime(value) {
+    const ts = Date.parse(value || "");
+    if (!Number.isFinite(ts)) return String(value || "—");
+    return new Date(ts).toISOString().replace(".000Z", "Z");
+}
+
+function buildCardFixMessage(candidate) {
+    const { citiesById } = getCatalog();
+    const city = candidate?.city ? citiesById[candidate.city] : null;
+    const cityPart = city ? ` по карте *${cityLabel(city)}*` : "";
+    return [
+        `🔧 Недавно у нас были техработы с оплатой картой${cityPart}.`,
+        "",
+        "Из-за этого при попытке оплаты могла показываться ошибка.",
+        "Сейчас всё исправлено: можно снова открыть витрину и завершить покупку.",
+        "",
+        "Если что-то не сработает, напиши /support.",
+    ].join("\n");
+}
+
+async function sendCardFixNotification(candidate, campaignId) {
+    const userId = Number(candidate?.userId);
+    if (!Number.isFinite(userId)) {
+        return { ok: false, error: "user_id_missing" };
+    }
+
+    try {
+        await bot.telegram.sendMessage(
+            userId,
+            buildCardFixMessage(candidate),
+            withWebAppKeyboard({
+                parse_mode: "Markdown",
+                disable_web_page_preview: true,
+            })
+        );
+        await logNotificationAsync({
+            userId,
+            campaignId,
+            channel: "telegram",
+            status: "sent",
+        });
+        return { ok: true };
+    } catch (error) {
+        const details =
+            error?.description ||
+            error?.response?.description ||
+            error?.message ||
+            String(error);
+        await logNotificationAsync({
+            userId,
+            campaignId,
+            channel: "telegram",
+            status: "failed",
+            errorText: details,
+        });
+        return { ok: false, error: details };
+    }
+}
+
+async function loadCardFixCandidatesFromCommand(text) {
+    const parts = String(text || "").trim().split(/\s+/).filter(Boolean);
+    const now = Date.now();
+    const defaultFrom = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+    const defaultTo = new Date(now).toISOString();
+
+    const fromTs = parseIsoDateArg(parts[1]) || defaultFrom;
+    const toTs = parseIsoDateArg(parts[2]) || defaultTo;
+    const campaignId = parts[3] || buildCardFixCampaignId(fromTs, toTs);
+    const candidates = await listCardCheckoutRecoveryCandidatesAsync({
+        fromTs,
+        toTs,
+        campaignId,
+        limit: 500,
+    });
+
+    return { fromTs, toTs, campaignId, candidates };
 }
 
 function webAppKeyboardIfAny() {
@@ -472,6 +564,90 @@ bot.command("support", async (ctx) => {
         "🆘 *Поддержка*\n\nEmail: silvershtain@mail.ru\nОтвет в течение 24 часов.\n\nОпиши проблему и пришли:\n— модель телефона\n— приложение (Organic Maps или MAPS.ME)\n— скрин/видео ошибки\n\nЯ помогу.",
         withWebAppKeyboard({ parse_mode: "Markdown" })
     );
+});
+
+bot.command("notify_card_fix_preview", async (ctx) => {
+    if (!isAdmin(ctx.from?.id)) return;
+    const text = String(ctx.message?.text || "").trim();
+    const { fromTs, toTs, campaignId, candidates } = await loadCardFixCandidatesFromCommand(text);
+    const lines = [
+        "📣 Кандидаты на уведомление",
+        `Период: ${formatPreviewTime(fromTs)} → ${formatPreviewTime(toTs)}`,
+        `campaign_id: ${campaignId}`,
+        `Найдено: ${candidates.length}`,
+        "",
+    ];
+
+    if (!candidates.length) {
+        lines.push("Никого не нашёл.");
+    } else {
+        for (const row of candidates.slice(0, 20)) {
+            const username = row.username ? `@${row.username}` : "—";
+            lines.push(
+                `${row.userId} · ${username} · ${row.productId || "—"} · ${row.city || "—"} · ${formatPreviewTime(row.lastEventAt)}`
+            );
+        }
+        if (candidates.length > 20) {
+            lines.push("", `Показаны первые 20 из ${candidates.length}.`);
+        }
+        lines.push(
+            "",
+            "Отправка:",
+            `/notify_card_fix_send ${fromTs} ${toTs} ${campaignId}`
+        );
+    }
+
+    await ctx.reply(lines.join("\n"));
+});
+
+bot.command("notify_card_fix_send", async (ctx) => {
+    if (!isAdmin(ctx.from?.id)) return;
+    const text = String(ctx.message?.text || "").trim();
+    const { fromTs, toTs, campaignId, candidates } = await loadCardFixCandidatesFromCommand(text);
+
+    if (!candidates.length) {
+        await ctx.reply(
+            [
+                "📭 Никого не нашёл для отправки.",
+                `Период: ${formatPreviewTime(fromTs)} → ${formatPreviewTime(toTs)}`,
+                `campaign_id: ${campaignId}`,
+            ].join("\n")
+        );
+        return;
+    }
+
+    await ctx.reply(
+        [
+            "🚀 Начинаю отправку уведомлений.",
+            `Период: ${formatPreviewTime(fromTs)} → ${formatPreviewTime(toTs)}`,
+            `campaign_id: ${campaignId}`,
+            `Кандидатов: ${candidates.length}`,
+        ].join("\n")
+    );
+
+    let sent = 0;
+    let failed = 0;
+    const failedRows = [];
+    for (const candidate of candidates) {
+        const result = await sendCardFixNotification(candidate, campaignId);
+        if (result.ok) {
+            sent += 1;
+        } else {
+            failed += 1;
+            failedRows.push(`${candidate.userId}: ${result.error || "unknown_error"}`);
+        }
+    }
+
+    const lines = [
+        "✅ Рассылка завершена.",
+        `campaign_id: ${campaignId}`,
+        `Отправлено: ${sent}`,
+        `Ошибок: ${failed}`,
+    ];
+    if (failedRows.length) {
+        lines.push("", "Ошибки:", ...failedRows.slice(0, 20));
+    }
+    await ctx.reply(lines.join("\n"));
 });
 
 bot.command("approve", async (ctx) => {
