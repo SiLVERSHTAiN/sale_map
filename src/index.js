@@ -693,7 +693,7 @@ async function registerBotCommands() {
         { command: "start", description: "Запустить бота" },
         { command: "how", description: "Как установить карту" },
         { command: "support", description: "Поддержка" },
-        { command: "catalog", description: "Проверить каталог" },
+        { command: "catalog", description: "Открыть каталог" },
     ];
 
     await bot.telegram.setMyCommands(userCommands);
@@ -1104,13 +1104,9 @@ bot.command("reject", async (ctx) => {
 
 bot.command("how", handleHowTo);
 
-// Быстрая проверка что каталог читается
 bot.command("catalog", async (ctx) => {
-    const { catalog } = getCatalog();
-    const cities = (catalog.cities || []).filter((c) => c.active !== false);
-    const products = (catalog.products || []).filter((p) => p.active !== false);
     await ctx.reply(
-        `📦 Catalog OK\nCities: ${cities.length}\nProducts: ${products.length}`,
+        "🗺 Открываю витрину. Выбери город и нужную карту, а файл придёт в этот чат.",
         withWebAppKeyboard()
     );
 });
