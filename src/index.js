@@ -5,11 +5,16 @@ import { Telegraf, Markup } from "telegraf";
 import { nanoid } from "nanoid";
 
 import {
+    getAdminLastTextAsync,
+    getBroadcastDraftAsync,
     hasPurchaseAsync,
+    listAllNotifiableUsersAsync,
     listCardCheckoutRecoveryCandidatesAsync,
     logNotificationAsync,
     markDownloadAsync,
     removePurchaseAsync,
+    setAdminLastTextAsync,
+    setBroadcastDraftAsync,
     storePurchaseAsync,
 } from "./storage.js";
 import { startApiServer } from "./api.js";
@@ -159,10 +164,88 @@ function buildCardFixCampaignId(fromTs, toTs) {
     return `card_fix:${fromTs}:${toTs}`;
 }
 
+function adminMenuKeyboard() {
+    return Markup.inlineKeyboard([
+        [Markup.button.callback("📣 Рассылки", "adm:menu:broadcasts")],
+        [Markup.button.callback("📦 Каталог", "adm:action:catalog")],
+    ]);
+}
+
+function broadcastsMenuKeyboard() {
+    return Markup.inlineKeyboard([
+        [Markup.button.callback("📝 Текст рассылки", "adm:menu:draft")],
+        [Markup.button.callback("🎯 Потенциальные покупатели", "adm:broadcast:recovery")],
+        [Markup.button.callback("👥 Все пользователи", "adm:broadcast:allusers")],
+        [Markup.button.callback("⬅️ Назад", "adm:menu:root")],
+    ]);
+}
+
+function draftMenuKeyboard() {
+    return Markup.inlineKeyboard([
+        [Markup.button.callback("👀 Показать черновик", "adm:draft:show")],
+        [Markup.button.callback("💾 Сохранить последнее сообщение", "adm:draft:use_last")],
+        [Markup.button.callback("⬅️ К рассылкам", "adm:menu:broadcasts")],
+    ]);
+}
+
+function audienceMenuKeyboard(audience) {
+    const scope = String(audience || "recovery");
+    return Markup.inlineKeyboard([
+        [
+            Markup.button.callback("👀 Показать 1 день", `adm:broadcast:${scope}:preview:1d`),
+            Markup.button.callback("🚀 Отправить 1 день", `adm:broadcast:${scope}:send:1d`),
+        ],
+        [
+            Markup.button.callback("👀 Показать 7 дней", `adm:broadcast:${scope}:preview:7d`),
+            Markup.button.callback("🚀 Отправить 7 дней", `adm:broadcast:${scope}:send:7d`),
+        ],
+        [
+            Markup.button.callback("👀 Показать 30 дней", `adm:broadcast:${scope}:preview:30d`),
+            Markup.button.callback("🚀 Отправить 30 дней", `adm:broadcast:${scope}:send:30d`),
+        ],
+        [
+            Markup.button.callback("👀 Показать всех", `adm:broadcast:${scope}:preview:all`),
+            Markup.button.callback("🚀 Отправить всех", `adm:broadcast:${scope}:send:all`),
+        ],
+        [Markup.button.callback("⬅️ К рассылкам", "adm:menu:broadcasts")],
+    ]);
+}
+
+function getPresetRange(preset) {
+    const now = new Date();
+    const map = {
+        "1d": 1,
+        "7d": 7,
+        "30d": 30,
+    };
+    const days = map[String(preset || "")];
+    if (!days) {
+        return { fromTs: null, toTs: now.toISOString() };
+    }
+    return {
+        fromTs: new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString(),
+        toTs: now.toISOString(),
+    };
+}
+
 function formatPreviewTime(value) {
     const ts = Date.parse(value || "");
     if (!Number.isFinite(ts)) return String(value || "—");
     return new Date(ts).toISOString().replace(".000Z", "Z");
+}
+
+function formatAudienceLabel(audience) {
+    return audience === "allusers" ? "Все пользователи" : "Потенциальные покупатели";
+}
+
+function formatPresetLabel(preset) {
+    const map = {
+        "1d": "1 день",
+        "7d": "7 дней",
+        "30d": "30 дней",
+        all: "все время",
+    };
+    return map[String(preset || "all")] || String(preset || "all");
 }
 
 function buildCardFixMessage(candidate) {
@@ -218,6 +301,10 @@ async function sendCardFixNotification(candidate, campaignId) {
     }
 }
 
+function buildBroadcastMessage(text) {
+    return String(text || "").trim();
+}
+
 async function loadCardFixCandidatesFromCommand(text) {
     const parts = String(text || "").trim().split(/\s+/).filter(Boolean);
     const now = Date.now();
@@ -237,6 +324,359 @@ async function loadCardFixCandidatesFromCommand(text) {
     return { fromTs, toTs, campaignId, candidates };
 }
 
+async function loadCardFixCandidatesByPreset(preset) {
+    const { fromTs, toTs } = getPresetRange(preset);
+    const campaignId = buildCardFixCampaignId(fromTs, toTs);
+    const candidates = await listCardCheckoutRecoveryCandidatesAsync({
+        fromTs,
+        toTs,
+        campaignId,
+        limit: 500,
+    });
+    return { fromTs, toTs, campaignId, candidates };
+}
+
+async function loadBroadcastAudienceByPreset({ audience, preset }) {
+    const normalizedAudience = audience === "allusers" ? "allusers" : "recovery";
+    const { fromTs, toTs } = getPresetRange(preset);
+    const campaignId = `broadcast:${normalizedAudience}:${preset}:${fromTs || "all"}:${toTs || "now"}`;
+
+    if (normalizedAudience === "allusers") {
+        const candidates = await listAllNotifiableUsersAsync({
+            campaignId,
+            limit: 5000,
+        });
+        return { audience: normalizedAudience, preset, fromTs, toTs, campaignId, candidates };
+    }
+
+    if (!fromTs || !toTs) {
+        const farPast = "2020-01-01T00:00:00.000Z";
+        const candidates = await listCardCheckoutRecoveryCandidatesAsync({
+            fromTs: farPast,
+            toTs: toTs || new Date().toISOString(),
+            campaignId,
+            limit: 5000,
+        });
+        return {
+            audience: normalizedAudience,
+            preset,
+            fromTs: farPast,
+            toTs: toTs || new Date().toISOString(),
+            campaignId,
+            candidates,
+        };
+    }
+
+    const candidates = await listCardCheckoutRecoveryCandidatesAsync({
+        fromTs,
+        toTs,
+        campaignId,
+        limit: 5000,
+    });
+    return { audience: normalizedAudience, preset, fromTs, toTs, campaignId, candidates };
+}
+
+function buildCardFixPreviewLines({ fromTs, toTs, campaignId, candidates }) {
+    const lines = [
+        "📣 Кандидаты на уведомление",
+        `Период: ${formatPreviewTime(fromTs)} → ${formatPreviewTime(toTs)}`,
+        `campaign_id: ${campaignId}`,
+        `Найдено: ${candidates.length}`,
+        "",
+    ];
+
+    if (!candidates.length) {
+        lines.push("Никого не нашёл.");
+        return lines;
+    }
+
+    for (const row of candidates.slice(0, 20)) {
+        const username = row.username ? `@${row.username}` : "—";
+        lines.push(
+            `${row.userId} · ${username} · ${row.productId || "—"} · ${row.city || "—"} · ${formatPreviewTime(row.lastEventAt)}`
+        );
+    }
+    if (candidates.length > 20) {
+        lines.push("", `Показаны первые 20 из ${candidates.length}.`);
+    }
+    return lines;
+}
+
+function buildBroadcastPreviewLines(payload) {
+    const { audience, preset, fromTs, toTs, campaignId, candidates } = payload;
+    const lines = [
+        "📣 Кандидаты на уведомление",
+        `Аудитория: ${formatAudienceLabel(audience)}`,
+        `Период: ${formatPresetLabel(preset)}`,
+        fromTs ? `Окно: ${formatPreviewTime(fromTs)} → ${formatPreviewTime(toTs)}` : `Окно: до ${formatPreviewTime(toTs)}`,
+        `campaign_id: ${campaignId}`,
+        `Найдено: ${candidates.length}`,
+        "",
+    ];
+
+    if (!candidates.length) {
+        lines.push("Никого не нашёл.");
+        return lines;
+    }
+
+    for (const row of candidates.slice(0, 20)) {
+        const username = row.username ? `@${row.username}` : "—";
+        lines.push(
+            `${row.userId} · ${username} · ${row.productId || "—"} · ${row.city || "—"} · ${formatPreviewTime(row.lastEventAt)}`
+        );
+    }
+    if (candidates.length > 20) {
+        lines.push("", `Показаны первые 20 из ${candidates.length}.`);
+    }
+    return lines;
+}
+
+async function runCardFixSend({ fromTs, toTs, campaignId, candidates }) {
+    if (!candidates.length) {
+        return {
+            lines: [
+                "📭 Никого не нашёл для отправки.",
+                `Период: ${formatPreviewTime(fromTs)} → ${formatPreviewTime(toTs)}`,
+                `campaign_id: ${campaignId}`,
+            ],
+        };
+    }
+
+    let sent = 0;
+    let failed = 0;
+    const failedRows = [];
+    for (const candidate of candidates) {
+        const result = await sendCardFixNotification(candidate, campaignId);
+        if (result.ok) {
+            sent += 1;
+        } else {
+            failed += 1;
+            failedRows.push(`${candidate.userId}: ${result.error || "unknown_error"}`);
+        }
+    }
+
+    const lines = [
+        "✅ Рассылка завершена.",
+        `campaign_id: ${campaignId}`,
+        `Отправлено: ${sent}`,
+        `Ошибок: ${failed}`,
+    ];
+    if (failedRows.length) {
+        lines.push("", "Ошибки:", ...failedRows.slice(0, 20));
+    }
+    return { lines };
+}
+
+async function runBroadcastSend(payload) {
+    const draft = await getBroadcastDraftAsync();
+    const messageText = buildBroadcastMessage(draft?.text);
+    if (!messageText) {
+        return {
+            lines: [
+                "✍️ Черновик рассылки пуст.",
+                "Отправь мне обычным сообщением текст и в меню «Рассылки» нажми «Текст рассылки» → «Сохранить последнее сообщение».",
+            ],
+        };
+    }
+
+    const { audience, preset, fromTs, toTs, campaignId, candidates } = payload;
+    if (!candidates.length) {
+        return {
+            lines: [
+                "📭 Никого не нашёл для отправки.",
+                `Аудитория: ${formatAudienceLabel(audience)}`,
+                `Период: ${formatPresetLabel(preset)}`,
+                fromTs
+                    ? `Окно: ${formatPreviewTime(fromTs)} → ${formatPreviewTime(toTs)}`
+                    : `Окно: до ${formatPreviewTime(toTs)}`,
+                `campaign_id: ${campaignId}`,
+            ],
+        };
+    }
+
+    let sent = 0;
+    let failed = 0;
+    const failedRows = [];
+    for (const candidate of candidates) {
+        try {
+            await bot.telegram.sendMessage(
+                Number(candidate.userId),
+                messageText,
+                withWebAppKeyboard({ disable_web_page_preview: false })
+            );
+            await logNotificationAsync({
+                userId: Number(candidate.userId),
+                campaignId,
+                channel: "telegram",
+                status: "sent",
+            });
+            sent += 1;
+        } catch (error) {
+            const details =
+                error?.description ||
+                error?.response?.description ||
+                error?.message ||
+                String(error);
+            await logNotificationAsync({
+                userId: Number(candidate.userId),
+                campaignId,
+                channel: "telegram",
+                status: "failed",
+                errorText: details,
+            });
+            failed += 1;
+            failedRows.push(`${candidate.userId}: ${details}`);
+        }
+    }
+
+    const lines = [
+        "✅ Рассылка завершена.",
+        `Аудитория: ${formatAudienceLabel(audience)}`,
+        `Период: ${formatPresetLabel(preset)}`,
+        `campaign_id: ${campaignId}`,
+        `Отправлено: ${sent}`,
+        `Ошибок: ${failed}`,
+    ];
+    if (failedRows.length) {
+        lines.push("", "Ошибки:", ...failedRows.slice(0, 20));
+    }
+    return { lines };
+}
+
+async function buildDraftStatusText() {
+    const [draft, lastText] = await Promise.all([
+        getBroadcastDraftAsync(),
+        getAdminLastTextAsync(),
+    ]);
+    const draftText = buildBroadcastMessage(draft?.text);
+    const lastMessageText = buildBroadcastMessage(lastText?.text);
+    return [
+        "📝 Текст рассылки",
+        "",
+        draftText
+            ? `Текущий черновик:\n${draftText}`
+            : "Текущий черновик: пока пусто.",
+        "",
+        lastMessageText
+            ? `Последнее твоё сообщение:\n${lastMessageText}`
+            : "Последнее сообщение пока не найдено.",
+        "",
+        "Как обновить текст:",
+        "1. Отправь боту обычным сообщением нужный текст.",
+        "2. Нажми «Сохранить последнее сообщение».",
+    ].join("\n");
+}
+
+async function handleAdminCallback(ctx, cbData) {
+    if (!isAdmin(ctx.from?.id)) {
+        try { await ctx.answerCbQuery("Недостаточно прав", { show_alert: true }); } catch {}
+        return true;
+    }
+
+    if (cbData === "adm:menu:root") {
+        try { await ctx.answerCbQuery(); } catch {}
+        await ctx.reply("Админ-меню", adminMenuKeyboard());
+        return true;
+    }
+
+    if (cbData === "adm:menu:broadcasts") {
+        try { await ctx.answerCbQuery(); } catch {}
+        await ctx.reply("Раздел рассылок", broadcastsMenuKeyboard());
+        return true;
+    }
+
+    if (cbData === "adm:menu:draft") {
+        try { await ctx.answerCbQuery(); } catch {}
+        await ctx.reply(await buildDraftStatusText(), draftMenuKeyboard());
+        return true;
+    }
+
+    if (cbData === "adm:draft:show") {
+        try { await ctx.answerCbQuery(); } catch {}
+        await ctx.reply(await buildDraftStatusText(), draftMenuKeyboard());
+        return true;
+    }
+
+    if (cbData === "adm:draft:use_last") {
+        const lastText = await getAdminLastTextAsync();
+        const text = buildBroadcastMessage(lastText?.text);
+        if (!text) {
+            try { await ctx.answerCbQuery("Сначала пришли текст сообщением", { show_alert: true }); } catch {}
+            return true;
+        }
+        await setBroadcastDraftAsync({
+            text,
+            savedAt: new Date().toISOString(),
+        });
+        try { await ctx.answerCbQuery("Черновик сохранён"); } catch {}
+        await ctx.reply(await buildDraftStatusText(), draftMenuKeyboard());
+        return true;
+    }
+
+    if (cbData === "adm:broadcast:recovery") {
+        try { await ctx.answerCbQuery(); } catch {}
+        await ctx.reply(
+            "Аудитория: потенциальные покупатели без завершённой покупки.",
+            audienceMenuKeyboard("recovery")
+        );
+        return true;
+    }
+
+    if (cbData === "adm:broadcast:allusers") {
+        try { await ctx.answerCbQuery(); } catch {}
+        await ctx.reply(
+            "Аудитория: все пользователи, у кого разрешены уведомления.",
+            audienceMenuKeyboard("allusers")
+        );
+        return true;
+    }
+
+    if (cbData === "adm:action:catalog") {
+        try { await ctx.answerCbQuery(); } catch {}
+        const { catalog } = getCatalog();
+        const cities = (catalog.cities || []).filter((c) => c.active !== false);
+        const products = (catalog.products || []).filter((p) => p.active !== false);
+        await ctx.reply(
+            `📦 Catalog OK\nCities: ${cities.length}\nProducts: ${products.length}`,
+            adminMenuKeyboard()
+        );
+        return true;
+    }
+
+    const parts = String(cbData || "").split(":");
+    if (parts[0] !== "adm" || parts[1] !== "broadcast") return false;
+
+    const audience = parts[2];
+    const mode = parts[3];
+    const preset = parts[4] || "1d";
+    const payload = await loadBroadcastAudienceByPreset({ audience, preset });
+
+    if (mode === "preview") {
+        try { await ctx.answerCbQuery("Собираю список"); } catch {}
+        await ctx.reply(buildBroadcastPreviewLines(payload).join("\n"), audienceMenuKeyboard(audience));
+        return true;
+    }
+
+    if (mode === "send") {
+        try { await ctx.answerCbQuery("Запускаю отправку"); } catch {}
+        await ctx.reply(
+            [
+                "🚀 Начинаю отправку уведомлений.",
+                `Аудитория: ${formatAudienceLabel(payload.audience)}`,
+                `Период: ${formatPresetLabel(payload.preset)}`,
+                `campaign_id: ${payload.campaignId}`,
+                `Кандидатов: ${payload.candidates.length}`,
+            ].join("\n"),
+            audienceMenuKeyboard(audience)
+        );
+        const result = await runBroadcastSend(payload);
+        await ctx.reply(result.lines.join("\n"), audienceMenuKeyboard(audience));
+        return true;
+    }
+
+    return false;
+}
+
 function webAppKeyboardIfAny() {
     return Markup.inlineKeyboard([
         Markup.button.webApp("🗺 Открыть витрину", WEBAPP_URL),
@@ -246,6 +686,32 @@ function webAppKeyboardIfAny() {
 function withWebAppKeyboard(options = {}) {
     const kb = webAppKeyboardIfAny();
     return kb ? { ...options, ...kb } : options;
+}
+
+async function registerBotCommands() {
+    const userCommands = [
+        { command: "start", description: "Запустить бота" },
+        { command: "how", description: "Как установить карту" },
+        { command: "support", description: "Поддержка" },
+        { command: "catalog", description: "Проверить каталог" },
+    ];
+
+    await bot.telegram.setMyCommands(userCommands);
+
+    if (!ADMIN_CHAT_ID) return;
+
+    const adminCommands = [
+        ...userCommands,
+        { command: "admin", description: "Админ-меню" },
+        { command: "notify_card_fix_preview", description: "Предпросмотр сервисной рассылки" },
+        { command: "notify_card_fix_send", description: "Отправить сервисную рассылку" },
+        { command: "approve", description: "Подтвердить USDT-оплату" },
+        { command: "reject", description: "Отклонить USDT-оплату" },
+    ];
+
+    await bot.telegram.setMyCommands(adminCommands, {
+        scope: { type: "chat", chat_id: ADMIN_CHAT_ID },
+    });
 }
 
 async function sendKmz(ctx, filePath, caption) {
@@ -566,88 +1032,40 @@ bot.command("support", async (ctx) => {
     );
 });
 
+bot.command("admin", async (ctx) => {
+    if (!isAdmin(ctx.from?.id)) return;
+    await ctx.reply("Админ-меню", adminMenuKeyboard());
+});
+
 bot.command("notify_card_fix_preview", async (ctx) => {
     if (!isAdmin(ctx.from?.id)) return;
     const text = String(ctx.message?.text || "").trim();
     const { fromTs, toTs, campaignId, candidates } = await loadCardFixCandidatesFromCommand(text);
-    const lines = [
-        "📣 Кандидаты на уведомление",
-        `Период: ${formatPreviewTime(fromTs)} → ${formatPreviewTime(toTs)}`,
-        `campaign_id: ${campaignId}`,
-        `Найдено: ${candidates.length}`,
-        "",
-    ];
-
-    if (!candidates.length) {
-        lines.push("Никого не нашёл.");
-    } else {
-        for (const row of candidates.slice(0, 20)) {
-            const username = row.username ? `@${row.username}` : "—";
-            lines.push(
-                `${row.userId} · ${username} · ${row.productId || "—"} · ${row.city || "—"} · ${formatPreviewTime(row.lastEventAt)}`
-            );
-        }
-        if (candidates.length > 20) {
-            lines.push("", `Показаны первые 20 из ${candidates.length}.`);
-        }
+    const lines = buildCardFixPreviewLines({ fromTs, toTs, campaignId, candidates });
+    if (candidates.length) {
         lines.push(
             "",
             "Отправка:",
             `/notify_card_fix_send ${fromTs} ${toTs} ${campaignId}`
         );
     }
-
     await ctx.reply(lines.join("\n"));
 });
 
 bot.command("notify_card_fix_send", async (ctx) => {
     if (!isAdmin(ctx.from?.id)) return;
     const text = String(ctx.message?.text || "").trim();
-    const { fromTs, toTs, campaignId, candidates } = await loadCardFixCandidatesFromCommand(text);
-
-    if (!candidates.length) {
-        await ctx.reply(
-            [
-                "📭 Никого не нашёл для отправки.",
-                `Период: ${formatPreviewTime(fromTs)} → ${formatPreviewTime(toTs)}`,
-                `campaign_id: ${campaignId}`,
-            ].join("\n")
-        );
-        return;
-    }
-
+    const payload = await loadCardFixCandidatesFromCommand(text);
     await ctx.reply(
         [
             "🚀 Начинаю отправку уведомлений.",
-            `Период: ${formatPreviewTime(fromTs)} → ${formatPreviewTime(toTs)}`,
-            `campaign_id: ${campaignId}`,
-            `Кандидатов: ${candidates.length}`,
+            `Период: ${formatPreviewTime(payload.fromTs)} → ${formatPreviewTime(payload.toTs)}`,
+            `campaign_id: ${payload.campaignId}`,
+            `Кандидатов: ${payload.candidates.length}`,
         ].join("\n")
     );
-
-    let sent = 0;
-    let failed = 0;
-    const failedRows = [];
-    for (const candidate of candidates) {
-        const result = await sendCardFixNotification(candidate, campaignId);
-        if (result.ok) {
-            sent += 1;
-        } else {
-            failed += 1;
-            failedRows.push(`${candidate.userId}: ${result.error || "unknown_error"}`);
-        }
-    }
-
-    const lines = [
-        "✅ Рассылка завершена.",
-        `campaign_id: ${campaignId}`,
-        `Отправлено: ${sent}`,
-        `Ошибок: ${failed}`,
-    ];
-    if (failedRows.length) {
-        lines.push("", "Ошибки:", ...failedRows.slice(0, 20));
-    }
-    await ctx.reply(lines.join("\n"));
+    const result = await runCardFixSend(payload);
+    await ctx.reply(result.lines.join("\n"));
 });
 
 bot.command("approve", async (ctx) => {
@@ -695,6 +1113,17 @@ bot.command("catalog", async (ctx) => {
         `📦 Catalog OK\nCities: ${cities.length}\nProducts: ${products.length}`,
         withWebAppKeyboard()
     );
+});
+
+bot.on("text", async (ctx, next) => {
+    const text = String(ctx.message?.text || "").trim();
+    if (isAdmin(ctx.from?.id) && text && !text.startsWith("/")) {
+        await setAdminLastTextAsync({
+            text,
+            savedAt: new Date().toISOString(),
+        });
+    }
+    return next();
 });
 
 // Telegram требует отвечать на pre_checkout
@@ -843,6 +1272,10 @@ bot.on("message", async (ctx) => {
 // На некоторых клиентах web_app_data приходит как callback_query
 bot.on("callback_query", async (ctx) => {
     const cbData = String(ctx.callbackQuery?.data || "");
+    if (cbData.startsWith("adm:")) {
+        const handled = await handleAdminCallback(ctx, cbData);
+        if (handled) return;
+    }
     if (cbData.startsWith("ua:") || cbData.startsWith("ur:")) {
         if (!isAdmin(ctx.from?.id)) {
             try { await ctx.answerCbQuery("Недостаточно прав", { show_alert: true }); } catch {}
@@ -890,6 +1323,7 @@ bot.catch((err) => console.error("BOT ERROR:", err));
 
 // На всякий: чтобы polling не конфликтовал с webhook
 await bot.telegram.deleteWebhook();
+await registerBotCommands();
 
 bot.launch();
 console.log("Bot is running...");

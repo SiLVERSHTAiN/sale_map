@@ -182,6 +182,13 @@ async function ensurePgSchema() {
         CREATE INDEX IF NOT EXISTS idx_notification_log_user_sent
         ON notification_log (user_id, sent_at DESC);
     `);
+    await p.query(`
+        CREATE TABLE IF NOT EXISTS app_settings (
+            key TEXT PRIMARY KEY,
+            value JSONB,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+    `);
     dbReady = true;
 }
 
@@ -244,6 +251,7 @@ function ensureAnalytics(db) {
     db.analytics.sessions ??= {};
     db.analytics.events ??= [];
     db.analytics.notificationLog ??= [];
+    db.appSettings ??= {};
 }
 
 export function hasPurchase(userId, productId) {
@@ -695,6 +703,63 @@ export async function logNotificationAsync({
     );
 }
 
+function getAppSettingLocal(key) {
+    const db = readDb();
+    ensureAnalytics(db);
+    return db.appSettings?.[String(key)] ?? null;
+}
+
+function setAppSettingLocal(key, value) {
+    const db = readDb();
+    ensureAnalytics(db);
+    db.appSettings[String(key)] = value ?? null;
+    writeDb(db);
+}
+
+export async function getAppSettingAsync(key) {
+    const p = getPool();
+    if (!p) return getAppSettingLocal(key);
+    await ensurePgSchema();
+    const res = await p.query(
+        "SELECT value FROM app_settings WHERE key = $1 LIMIT 1",
+        [String(key)]
+    );
+    return res.rows[0]?.value ?? null;
+}
+
+export async function setAppSettingAsync(key, value) {
+    const p = getPool();
+    if (!p) return setAppSettingLocal(key, value);
+    await ensurePgSchema();
+    await p.query(
+        `
+        INSERT INTO app_settings (key, value, updated_at)
+        VALUES ($1, $2, NOW())
+        ON CONFLICT (key)
+        DO UPDATE SET
+            value = EXCLUDED.value,
+            updated_at = NOW()
+        `,
+        [String(key), value ?? null]
+    );
+}
+
+export async function getBroadcastDraftAsync() {
+    return getAppSettingAsync("broadcast_draft");
+}
+
+export async function setBroadcastDraftAsync(value) {
+    return setAppSettingAsync("broadcast_draft", value);
+}
+
+export async function getAdminLastTextAsync() {
+    return getAppSettingAsync("admin_last_text");
+}
+
+export async function setAdminLastTextAsync(value) {
+    return setAppSettingAsync("admin_last_text", value);
+}
+
 function listCardCheckoutRecoveryCandidatesLocal({
     fromTs,
     toTs,
@@ -816,6 +881,83 @@ export async function listCardCheckoutRecoveryCandidatesAsync({
         productId: row.product_id || null,
         city: row.city || resolveAnalyticsCity(row),
         lastEventAt: row.last_event_at ? new Date(row.last_event_at).toISOString() : null,
+    }));
+}
+
+function listAllNotifiableUsersLocal({
+    campaignId = null,
+    limit = 200,
+}) {
+    const db = readDb();
+    ensureAnalytics(db);
+
+    const alreadyNotifiedUsers = new Set();
+    if (campaignId) {
+        for (const row of db.analytics.notificationLog || []) {
+            if (String(row?.campaignId || "") !== String(campaignId)) continue;
+            if (String(row?.status || "") !== "sent") continue;
+            alreadyNotifiedUsers.add(Number(row?.userId));
+        }
+    }
+
+    const rows = Object.values(db.analytics.users || {})
+        .filter((user) => {
+            const userId = Number(user?.userId);
+            if (!Number.isFinite(userId)) return false;
+            if (isAnalyticsUserExcluded(userId)) return false;
+            if (user?.canNotify === false) return false;
+            if (alreadyNotifiedUsers.has(userId)) return false;
+            return true;
+        })
+        .map((user) => ({
+            userId: Number(user.userId),
+            username: user.username || null,
+            productId: null,
+            city: null,
+            lastEventAt: user.lastSeenAt || user.firstSeenAt || null,
+        }))
+        .sort((a, b) => String(b.lastEventAt || "").localeCompare(String(a.lastEventAt || "")))
+        .slice(0, clampInt(limit, 1, 5000, 200));
+
+    return rows;
+}
+
+export async function listAllNotifiableUsersAsync({
+    campaignId = null,
+    limit = 200,
+}) {
+    const p = getPool();
+    if (!p) {
+        return listAllNotifiableUsersLocal({ campaignId, limit });
+    }
+    await ensurePgSchema();
+    const res = await p.query(
+        `
+        SELECT
+            u.user_id,
+            u.username,
+            u.last_seen_at
+        FROM users u
+        LEFT JOIN notification_log nl
+            ON nl.user_id = u.user_id
+           AND nl.campaign_id IS NOT DISTINCT FROM $1::text
+           AND nl.channel = 'telegram'
+           AND nl.status = 'sent'
+        WHERE COALESCE(u.can_notify, TRUE) = TRUE
+          AND ($1::text IS NULL OR nl.user_id IS NULL)
+          AND NOT (u.user_id = ANY($3::bigint[]))
+        ORDER BY u.last_seen_at DESC
+        LIMIT $2
+        `,
+        [campaignId || null, clampInt(limit, 1, 5000, 200), ANALYTICS_EXCLUDE_USER_IDS]
+    );
+
+    return res.rows.map((row) => ({
+        userId: Number(row.user_id),
+        username: row.username || null,
+        productId: null,
+        city: null,
+        lastEventAt: row.last_seen_at ? new Date(row.last_seen_at).toISOString() : null,
     }));
 }
 
