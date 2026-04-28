@@ -1038,6 +1038,10 @@ a.btn{
   max-width: 1180px;
 }
 
+.admin-wrap > section + section{
+  margin-top: 20px;
+}
+
 .admin-filters{
   display: grid;
   grid-template-columns: 2fr 2fr minmax(120px, 160px);
@@ -1052,20 +1056,25 @@ a.btn{
   margin-top: 12px;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
 }
 
 .admin-meta{
+  display: block;
   font-size: 12px;
   color: var(--muted);
+  line-height: 1.45;
+}
+
+#admin-promo-meta{
+  margin-top: 14px;
 }
 
 .admin-kpi-grid{
-  margin-top: 12px;
-  margin-bottom: 12px;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 10px;
+  gap: 16px;
 }
 
 .admin-kpi{
@@ -1100,6 +1109,7 @@ a.btn{
 
 .admin-table-wrap{
   overflow: auto;
+  -webkit-overflow-scrolling: touch;
   border: 1px solid var(--stroke);
   border-radius: 12px;
   background: rgba(255,255,255,.02);
@@ -1141,12 +1151,74 @@ a.btn{
 }
 
 @media (max-width: 900px){
+  .admin-wrap > section + section{
+    margin-top: 18px;
+  }
+
   .admin-filters{
     grid-template-columns: 1fr;
+    gap: 12px;
   }
 
   .admin-actions{
     flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .admin-actions .btn.inline{
+    width: 100%;
+    justify-content: center;
+  }
+
+  .admin-meta{
+    margin-top: 4px;
+  }
+
+  .admin-table-wrap{
+    margin-top: 12px;
+    border-radius: 14px;
+  }
+}
+
+@media (max-width: 640px){
+  .admin-wrap > section + section{
+    margin-top: 16px;
+  }
+
+  .wrap.admin-wrap{
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .admin-wrap .top{
     align-items: flex-start;
+  }
+
+  .admin-wrap .top .chip{
+    align-self: flex-start;
+  }
+
+  .admin-wrap .card{
+    padding: 14px;
+    border-radius: 20px;
+  }
+
+  .admin-table-head{
+    margin-bottom: 12px;
+  }
+
+  .admin-table-head h2{
+    font-size: 15px;
+  }
+
+  .admin-table{
+    min-width: 880px;
+    font-size: 12px;
+  }
+
+  .admin-table th,
+  .admin-table td{
+    padding: 10px 9px;
   }
 }
