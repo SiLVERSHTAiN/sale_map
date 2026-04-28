@@ -805,7 +805,9 @@ function renderCityCard(city, products, purchasedSet, purchaseMap){
     const rubUrl = full?.payUrl ? String(full.payUrl) : '';
     const useCardApi = Boolean(API_BASE) && isTg;
     const showCardLink = !useCardApi && rubUrl;
-    const fullSubtitle = full ? (full.subtitle || starsLabel(fullPriceStars)) : '';
+    const fullSubtitle = full
+        ? (promoPricing ? starsLabel(fullPriceStars) : (full.subtitle || starsLabel(fullPriceStars)))
+        : '';
     const fullPriceOldText = promoPricing
         ? rubLabel(full?.priceRub)
         : (full?.priceRubOld && Number(full.priceRubOld) > Number(full.priceRub || 0)

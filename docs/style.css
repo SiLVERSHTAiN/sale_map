@@ -594,7 +594,8 @@ body.info-open{
 }
 
 .promo-status.success{
-  color: #86efac;
+  color: #16a34a;
+  font-weight: 700;
 }
 
 @media (max-width: 900px){
