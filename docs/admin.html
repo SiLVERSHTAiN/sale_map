@@ -38,142 +38,144 @@
             <div id="admin-error" class="error hidden"></div>
         </section>
 
-        <section class="card">
-            <div class="admin-table-head">
-                <h2>Промокод</h2>
-            </div>
-            <div class="admin-filters admin-promo-grid">
-                <div class="field">
-                    <label for="admin-promo-code">Код</label>
-                    <input id="admin-promo-code" type="text" autocomplete="off" placeholder="SPRING10" />
+        <div id="admin-protected" class="hidden">
+            <section class="card">
+                <div class="admin-table-head">
+                    <h2>Промокод</h2>
                 </div>
-                <div class="field field-days">
-                    <label for="admin-promo-discount">Скидка (%)</label>
-                    <input id="admin-promo-discount" type="number" min="1" max="95" value="10" />
+                <div class="admin-filters admin-promo-grid">
+                    <div class="field">
+                        <label for="admin-promo-code">Код</label>
+                        <input id="admin-promo-code" type="text" autocomplete="off" placeholder="SPRING10" />
+                    </div>
+                    <div class="field field-days">
+                        <label for="admin-promo-discount">Скидка (%)</label>
+                        <input id="admin-promo-discount" type="number" min="1" max="95" value="10" />
+                    </div>
                 </div>
-            </div>
-            <div class="admin-actions">
-                <button id="admin-promo-save" class="btn primary inline" type="button">Сохранить промокод</button>
-                <button id="admin-promo-disable" class="btn ghost inline" type="button">Отключить</button>
-            </div>
-            <div id="admin-promo-meta" class="admin-meta">Промокод не загружен.</div>
-        </section>
+                <div class="admin-actions">
+                    <button id="admin-promo-save" class="btn primary inline" type="button">Сохранить промокод</button>
+                    <button id="admin-promo-disable" class="btn ghost inline" type="button">Отключить</button>
+                </div>
+                <div id="admin-promo-meta" class="admin-meta">Промокод не загружен.</div>
+            </section>
 
-        <section id="admin-summary" class="admin-kpi-grid"></section>
+            <section id="admin-summary" class="admin-kpi-grid"></section>
 
-        <section class="card">
-            <div class="admin-table-head">
-                <h2>Дневная метрика</h2>
-            </div>
-            <div class="admin-table-wrap">
-                <table class="admin-table">
-                    <thead>
-                        <tr>
-                            <th>Дата</th>
-                            <th>DAU</th>
-                            <th>Открытия</th>
-                            <th>Клик карта</th>
-                            <th>Клик USDT</th>
-                            <th>Клик Stars</th>
-                            <th>USDT заявки</th>
-                            <th>Free клики</th>
-                            <th>Оплат</th>
-                        </tr>
-                    </thead>
-                    <tbody id="admin-daily-body"></tbody>
-                </table>
-            </div>
-        </section>
+            <section class="card">
+                <div class="admin-table-head">
+                    <h2>Дневная метрика</h2>
+                </div>
+                <div class="admin-table-wrap">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Дата</th>
+                                <th>DAU</th>
+                                <th>Открытия</th>
+                                <th>Клик карта</th>
+                                <th>Клик USDT</th>
+                                <th>Клик Stars</th>
+                                <th>USDT заявки</th>
+                                <th>Free клики</th>
+                                <th>Оплат</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-daily-body"></tbody>
+                    </table>
+                </div>
+            </section>
 
-        <section class="card">
-            <div class="admin-table-head">
-                <h2>Недельная сводка</h2>
-            </div>
-            <div class="admin-table-wrap">
-                <table class="admin-table">
-                    <thead>
-                        <tr>
-                            <th>Неделя</th>
-                            <th>Ср. DAU</th>
-                            <th>Пик DAU</th>
-                            <th>Открытия</th>
-                            <th>Клик карта</th>
-                            <th>Клик USDT</th>
-                            <th>Клик Stars</th>
-                            <th>USDT заявки</th>
-                            <th>Free клики</th>
-                            <th>Оплат</th>
-                        </tr>
-                    </thead>
-                    <tbody id="admin-weekly-body"></tbody>
-                </table>
-            </div>
-        </section>
+            <section class="card">
+                <div class="admin-table-head">
+                    <h2>Недельная сводка</h2>
+                </div>
+                <div class="admin-table-wrap">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Неделя</th>
+                                <th>Ср. DAU</th>
+                                <th>Пик DAU</th>
+                                <th>Открытия</th>
+                                <th>Клик карта</th>
+                                <th>Клик USDT</th>
+                                <th>Клик Stars</th>
+                                <th>USDT заявки</th>
+                                <th>Free клики</th>
+                                <th>Оплат</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-weekly-body"></tbody>
+                    </table>
+                </div>
+            </section>
 
-        <section class="card">
-            <div class="admin-table-head">
-                <h2>Месячная сводка</h2>
-            </div>
-            <div class="admin-table-wrap">
-                <table class="admin-table">
-                    <thead>
-                        <tr>
-                            <th>Месяц</th>
-                            <th>Ср. DAU</th>
-                            <th>Пик DAU</th>
-                            <th>Открытия</th>
-                            <th>Клик карта</th>
-                            <th>Клик USDT</th>
-                            <th>Клик Stars</th>
-                            <th>USDT заявки</th>
-                            <th>Free клики</th>
-                            <th>Оплат</th>
-                        </tr>
-                    </thead>
-                    <tbody id="admin-monthly-body"></tbody>
-                </table>
-            </div>
-        </section>
+            <section class="card">
+                <div class="admin-table-head">
+                    <h2>Месячная сводка</h2>
+                </div>
+                <div class="admin-table-wrap">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Месяц</th>
+                                <th>Ср. DAU</th>
+                                <th>Пик DAU</th>
+                                <th>Открытия</th>
+                                <th>Клик карта</th>
+                                <th>Клик USDT</th>
+                                <th>Клик Stars</th>
+                                <th>USDT заявки</th>
+                                <th>Free клики</th>
+                                <th>Оплат</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-monthly-body"></tbody>
+                    </table>
+                </div>
+            </section>
 
-        <section class="card">
-            <div class="admin-table-head">
-                <h2>Топ городов</h2>
-            </div>
-            <div class="admin-table-wrap">
-                <table class="admin-table">
-                    <thead>
-                        <tr>
-                            <th>Город</th>
-                            <th>Фокус</th>
-                            <th>Free клики</th>
-                            <th>Клики “Купить”</th>
-                        </tr>
-                    </thead>
-                    <tbody id="admin-cities-body"></tbody>
-                </table>
-            </div>
-        </section>
+            <section class="card">
+                <div class="admin-table-head">
+                    <h2>Топ городов</h2>
+                </div>
+                <div class="admin-table-wrap">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Город</th>
+                                <th>Фокус</th>
+                                <th>Free клики</th>
+                                <th>Клики “Купить”</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-cities-body"></tbody>
+                    </table>
+                </div>
+            </section>
 
-        <section class="card">
-            <div class="admin-table-head">
-                <h2>Пользователи (последние)</h2>
-            </div>
-            <div class="admin-table-wrap">
-                <table class="admin-table">
-                    <thead>
-                        <tr>
-                            <th>User ID</th>
-                            <th>Username</th>
-                            <th>Язык</th>
-                            <th>Открытия</th>
-                            <th>Платформа</th>
-                            <th>Последний визит</th>
-                        </tr>
-                    </thead>
-                    <tbody id="admin-users-body"></tbody>
-                </table>
-            </div>
-        </section>
+            <section class="card">
+                <div class="admin-table-head">
+                    <h2>Пользователи (последние)</h2>
+                </div>
+                <div class="admin-table-wrap">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>User ID</th>
+                                <th>Username</th>
+                                <th>Язык</th>
+                                <th>Открытия</th>
+                                <th>Платформа</th>
+                                <th>Последний визит</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-users-body"></tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
     </div>
 
     <script src="./config.js"></script>

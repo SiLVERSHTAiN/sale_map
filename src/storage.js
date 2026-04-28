@@ -1446,9 +1446,15 @@ function buildTopCitiesLocal(events, days) {
     });
 }
 
-function buildUsersLastSeenLocal(db) {
+function buildUsersLastSeenLocal(db, days) {
+    const normalizedDays = clampInt(days, 1, 120, 30);
+    const startTs = Date.now() - normalizedDays * 24 * 60 * 60 * 1000;
     const users = Object.values(db?.analytics?.users || {})
         .filter((u) => !isAnalyticsUserExcluded(u?.userId))
+        .filter((u) => {
+            const lastSeenMs = Date.parse(u?.lastSeenAt || "");
+            return Number.isFinite(lastSeenMs) && lastSeenMs >= startTs;
+        })
         .map((u) => ({
             user_id: Number(u?.userId),
             username: u?.username || null,
@@ -1469,7 +1475,7 @@ function getAdminAnalyticsLocal({ days, topCitiesLimit, usersLimit }) {
     const purchases = localPurchasesAll(db);
     const daily = buildDailyLocal(events, purchases, days);
     const topCities = buildTopCitiesLocal(events, days).slice(0, topCitiesLimit);
-    const usersLastSeen = buildUsersLastSeenLocal(db).slice(0, usersLimit);
+    const usersLastSeen = buildUsersLastSeenLocal(db, days).slice(0, usersLimit);
     const usersTotal = Object.values(db?.analytics?.users || {}).filter(
         (u) => !isAnalyticsUserExcluded(u?.userId)
     ).length;
@@ -1565,10 +1571,11 @@ export async function getAdminAnalyticsAsync(options = {}) {
             last_seen_at
         FROM users
         WHERE NOT (user_id = ANY($2::bigint[]))
+          AND last_seen_at >= NOW() - ($3::int * INTERVAL '1 day')
         ORDER BY last_seen_at DESC
         LIMIT $1
         `,
-        [usersLimit, ANALYTICS_EXCLUDE_USER_IDS]
+        [usersLimit, ANALYTICS_EXCLUDE_USER_IDS, days]
     );
 
     const summaryRes = await p.query(

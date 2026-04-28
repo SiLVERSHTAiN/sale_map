@@ -11,6 +11,7 @@ const el = {
     token: document.getElementById("admin-token"),
     days: document.getElementById("admin-days"),
     refresh: document.getElementById("admin-refresh"),
+    protected: document.getElementById("admin-protected"),
     promoCode: document.getElementById("admin-promo-code"),
     promoDiscount: document.getElementById("admin-promo-discount"),
     promoSave: document.getElementById("admin-promo-save"),
@@ -87,6 +88,10 @@ function setError(text) {
 
 function setMeta(text) {
     el.meta.textContent = text || "—";
+}
+
+function setProtectedVisible(visible) {
+    el.protected.classList.toggle("hidden", !visible);
 }
 
 function setLoading(loading) {
@@ -313,12 +318,14 @@ async function loadAnalytics() {
     setError("");
 
     if (!settings.apiBase) {
+        setProtectedVisible(false);
         setError("Укажите API Base.");
-        return;
+        return false;
     }
     if (!settings.token) {
+        setProtectedVisible(false);
         setError("Укажите admin token.");
-        return;
+        return false;
     }
 
     const url = new URL(`${settings.apiBase}/api/admin/analytics`);
@@ -350,13 +357,17 @@ async function loadAnalytics() {
         renderPeriod(data.monthly, el.monthlyBody);
         renderCities(data.topCities);
         renderUsers(data.usersLastSeen);
+        setProtectedVisible(true);
         setMeta(
             `Обновлено: ${formatDateTime(data.generatedAt)} · Период: ${numberFmt.format(
                 toInt(data.rangeDays)
             )} дн.`
         );
+        return true;
     } catch (error) {
+        setProtectedVisible(false);
         setError(error?.message || "Не удалось загрузить аналитику.");
+        return false;
     } finally {
         setLoading(false);
     }
@@ -437,9 +448,9 @@ async function savePromo(enabled) {
 }
 
 function bindEvents() {
-    el.refresh.addEventListener("click", () => {
-        loadAnalytics();
-        loadPromo();
+    el.refresh.addEventListener("click", async () => {
+        const ok = await loadAnalytics();
+        if (ok) await loadPromo();
     });
 
     el.promoSave.addEventListener("click", () => {
@@ -461,8 +472,10 @@ function bindEvents() {
                 if (input === el.promoCode || input === el.promoDiscount) {
                     savePromo(true);
                 } else {
-                    loadAnalytics();
-                    loadPromo();
+                    (async () => {
+                        const ok = await loadAnalytics();
+                        if (ok) await loadPromo();
+                    })();
                 }
             }
         });
@@ -472,10 +485,13 @@ function bindEvents() {
 function init() {
     hydrateSettings();
     bindEvents();
+    setProtectedVisible(false);
     setMeta("Заполните token и нажмите «Обновить».");
     if (el.token.value.trim()) {
-        loadAnalytics();
-        loadPromo();
+        (async () => {
+            const ok = await loadAnalytics();
+            if (ok) await loadPromo();
+        })();
     }
 }
 
