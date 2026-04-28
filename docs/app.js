@@ -32,8 +32,8 @@ function applyTelegramTheme(){
         css.setProperty('--btn',   '#eef2ff');
         css.setProperty('--btnText','#0f172a');
         css.setProperty('--shadow','0 18px 40px rgba(15, 23, 42, .10)');
-        css.setProperty('--skeleton','rgba(15, 23, 42, .08)');
-        css.setProperty('--skeletonShine','rgba(15, 23, 42, .18)');
+        css.setProperty('--skeleton','rgba(15, 23, 42, .12)');
+        css.setProperty('--skeletonShine','rgba(15, 23, 42, .22)');
         css.setProperty('--consent-bg','rgba(15, 23, 42, .04)');
         css.setProperty('--consent-border','rgba(15, 23, 42, .08)');
         css.setProperty('--consent-text','#1f2937');
@@ -215,6 +215,22 @@ function renderPromoBlock(){
             ${status}
         </div>
     `;
+}
+
+function installInputDismissal(){
+    const isEditable = (el) => el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
+    const shouldIgnore = (target) => {
+        if (!target) return false;
+        return !!target.closest('input, textarea, button, a, label, .promo-box, .info-sheet');
+    };
+    const handler = (event) => {
+        const active = document.activeElement;
+        if (isEditable(active) && !shouldIgnore(event.target)) {
+            active.blur();
+        }
+    };
+    document.addEventListener('touchstart', handler, { passive: true });
+    document.addEventListener('mousedown', handler);
 }
 
 function rerenderCatalog(){
@@ -890,7 +906,7 @@ function renderCityLink(city){
 }
 
 function renderHomeSkeleton(count = 2){
-    return Array.from({ length: count }).map(() => `
+    const cards = Array.from({ length: count }).map(() => `
         <div class="card skeleton-card" aria-hidden="true">
             <div class="skeleton-row">
                 <div class="skeleton" style="height:22px;width:150px"></div>
@@ -906,15 +922,29 @@ function renderHomeSkeleton(count = 2){
             <div class="skeleton" style="height:46px;width:100%;margin-top:8px"></div>
         </div>
     `).join('');
+    return `
+        <div class="loading-note" aria-hidden="true">
+            <span class="loading-spinner"></span>
+            <span>Загружаем каталог…</span>
+        </div>
+        ${cards}
+    `;
 }
 
 function renderCatalogSkeleton(count = 4){
-    return Array.from({ length: count }).map(() => `
+    const items = Array.from({ length: count }).map(() => `
         <div class="cityItem skeleton-card" aria-hidden="true">
             <div class="skeleton" style="height:16px;width:160px"></div>
             <div class="skeleton" style="height:12px;width:40px"></div>
         </div>
     `).join('');
+    return `
+        <div class="loading-note" aria-hidden="true">
+            <span class="loading-spinner"></span>
+            <span>Загружаем список…</span>
+        </div>
+        ${items}
+    `;
 }
 
 function showSkeleton(el, page){
@@ -1043,6 +1073,7 @@ function bindPromoControls(root){
         btn.addEventListener('click', async () => {
             const input = btn.closest('.promo-box')?.querySelector('.promo-input');
             await applyPromoCodeFromInput(input?.value || '', btn);
+            input?.blur();
         });
     });
 
@@ -1052,6 +1083,7 @@ function bindPromoControls(root){
             event.preventDefault();
             const btn = input.closest('.promo-box')?.querySelector('.promo-apply');
             await applyPromoCodeFromInput(input.value || '', btn);
+            input.blur();
         });
     });
 }
@@ -1075,6 +1107,7 @@ function scrollToHash(){
 async function init(){
     hydratePromoState();
     applyTelegramTheme();
+    installInputDismissal();
     setStoreLinks(document);
     setupFloatingAction();
     setupInfoPanel();

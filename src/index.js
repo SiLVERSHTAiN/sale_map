@@ -187,11 +187,31 @@ function buildCardFixCampaignId(fromTs, toTs) {
     return `card_fix:${fromTs}:${toTs}`;
 }
 
+function adminPanelUrl() {
+    try {
+        const url = new URL(WEBAPP_URL);
+        if (url.pathname.endsWith("/index.html")) {
+            url.pathname = url.pathname.replace(/\/index\.html$/, "/admin.html");
+        } else if (url.pathname.endsWith("/")) {
+            url.pathname = `${url.pathname}admin.html`;
+        } else {
+            url.pathname = `${url.pathname}/admin.html`;
+        }
+        url.hash = "";
+        url.search = "";
+        return url.toString();
+    } catch {
+        return "";
+    }
+}
+
 function adminMenuKeyboard() {
-    return Markup.inlineKeyboard([
+    const rows = [
         [Markup.button.callback("📣 Рассылки", "adm:menu:broadcasts")],
+        [Markup.button.url("🎟 Промокод", adminPanelUrl())],
         [Markup.button.callback("📦 Каталог", "adm:action:catalog")],
-    ]);
+    ];
+    return Markup.inlineKeyboard(rows.filter((row) => row.every(Boolean)));
 }
 
 function broadcastsMenuKeyboard() {
@@ -761,8 +781,6 @@ async function registerBotCommands() {
     const adminCommands = [
         ...userCommands,
         { command: "admin", description: "Админ-меню" },
-        { command: "notify_card_fix_preview", description: "Предпросмотр сервисной рассылки" },
-        { command: "notify_card_fix_send", description: "Отправить сервисную рассылку" },
         { command: "approve", description: "Подтвердить USDT-оплату" },
         { command: "reject", description: "Отклонить USDT-оплату" },
     ];
