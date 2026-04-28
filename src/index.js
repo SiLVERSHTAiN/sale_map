@@ -15,6 +15,7 @@ import {
     logNotificationAsync,
     markDownloadAsync,
     removePurchaseAsync,
+    setUserCanNotifyAsync,
     setAdminLastTextAsync,
     setBroadcastDraftAsync,
     storePurchaseAsync,
@@ -311,6 +312,16 @@ function buildCardFixMessage(candidate) {
     ].join("\n");
 }
 
+function isBotBlockedError(error) {
+    const details = String(
+        error?.description ||
+            error?.response?.description ||
+            error?.message ||
+            ""
+    ).toLowerCase();
+    return details.includes("bot was blocked by the user");
+}
+
 async function sendCardFixNotification(candidate, campaignId) {
     const userId = Number(candidate?.userId);
     if (!Number.isFinite(userId)) {
@@ -339,6 +350,9 @@ async function sendCardFixNotification(candidate, campaignId) {
             error?.response?.description ||
             error?.message ||
             String(error);
+        if (isBotBlockedError(error)) {
+            await setUserCanNotifyAsync(userId, false).catch(() => {});
+        }
         await logNotificationAsync({
             userId,
             campaignId,
@@ -586,6 +600,9 @@ async function runBroadcastSend(payload) {
                 error?.response?.description ||
                 error?.message ||
                 String(error);
+            if (isBotBlockedError(error)) {
+                await setUserCanNotifyAsync(Number(candidate.userId), false).catch(() => {});
+            }
             await logNotificationAsync({
                 userId: Number(candidate.userId),
                 campaignId,
@@ -894,11 +911,14 @@ async function handleGetFileByUser(userId, productId) {
 
 async function handleYookassaPaid({ userId, productId, payment }) {
     if (!userId || !productId) return;
+    const metadata = payment?.metadata || {};
     if (!(await hasPurchaseAsync(userId, productId))) {
         await storePurchaseAsync({
             userId,
             productId,
             telegramPaymentChargeId: null,
+            promoCode: metadata?.promo_code || null,
+            promoDiscountPercent: metadata?.promo_discount_percent || null,
             payload: JSON.stringify({
                 provider: "yookassa",
                 payment: payment || null,
@@ -920,7 +940,15 @@ async function handleYookassaRefund({ userId, productId, isFullRefund }) {
     }
 }
 
-async function handleManualUsdtRequest({ userId, productId, txid, product, amountUsdt }) {
+async function handleManualUsdtRequest({
+    userId,
+    productId,
+    txid,
+    product,
+    amountUsdt,
+    promoCode = null,
+    promoDiscountPercent = null,
+}) {
     if (!ADMIN_CHAT_ID) {
         throw new Error("admin_chat_id_missing");
     }
@@ -942,7 +970,10 @@ async function handleManualUsdtRequest({ userId, productId, txid, product, amoun
             lines.join("\n"),
             Markup.inlineKeyboard([
                 [
-                    Markup.button.callback("✅ Подтвердить", `ua:${userId}:${productId}`),
+                    Markup.button.callback(
+                        "✅ Подтвердить",
+                        `ua:${userId}:${productId}:${promoCode || "-"}:${promoDiscountPercent || 0}`
+                    ),
                     Markup.button.callback("❌ Отклонить", `ur:${userId}:${productId}`),
                 ],
             ])
@@ -957,11 +988,19 @@ async function handleManualUsdtRequest({ userId, productId, txid, product, amoun
     }
 }
 
-async function approveUsdtPurchase({ userId, productId, txid }) {
+async function approveUsdtPurchase({
+    userId,
+    productId,
+    txid,
+    promoCode = null,
+    promoDiscountPercent = null,
+}) {
     await storePurchaseAsync({
         userId,
         productId,
         telegramPaymentChargeId: null,
+        promoCode: promoCode || null,
+        promoDiscountPercent: promoDiscountPercent || null,
         payload: JSON.stringify({
             provider: "usdt_manual",
             txid: txid || null,
@@ -1024,6 +1063,7 @@ async function handleBuy(ctx, productId, promoCode = "") {
         productId: product.id,
         userId,
         promoCode: promoValidation.ok ? promoValidation.promo.code : "",
+        promoDiscountPercent: promoValidation.ok ? promoValidation.promo.discountPercent : 0,
         nonce: nanoid(10),
     });
 
@@ -1079,6 +1119,7 @@ async function handleBuyByUser(userId, productId, promoCode = "") {
         productId: product.id,
         userId,
         promoCode: promoValidation.ok ? promoValidation.promo.code : "",
+        promoDiscountPercent: promoValidation.ok ? promoValidation.promo.discountPercent : 0,
         nonce: nanoid(10),
     });
 
@@ -1244,6 +1285,8 @@ bot.on("successful_payment", async (ctx) => {
         userId,
         productId,
         telegramPaymentChargeId: sp.telegram_payment_charge_id,
+        promoCode: parsed?.promoCode || null,
+        promoDiscountPercent: parsed?.promoDiscountPercent || null,
         payload: sp.invoice_payload,
     });
 
@@ -1370,6 +1413,8 @@ bot.on("callback_query", async (ctx) => {
         const action = parts[0];
         const userId = Number(parts[1]);
         const productId = parts[2];
+        const promoCode = parts[3] && parts[3] !== "-" ? parts[3] : null;
+        const promoDiscountPercent = Number(parts[4] || 0) || null;
         if (!Number.isFinite(userId) || !productId) {
             try { await ctx.answerCbQuery("Некорректные данные", { show_alert: true }); } catch {}
             return;
@@ -1378,7 +1423,13 @@ bot.on("callback_query", async (ctx) => {
         try {
             if (action === "ua") {
                 const txid = parseTxidFromAdminMessage(ctx.callbackQuery?.message?.text);
-                await approveUsdtPurchase({ userId, productId, txid });
+                await approveUsdtPurchase({
+                    userId,
+                    productId,
+                    txid,
+                    promoCode,
+                    promoDiscountPercent,
+                });
                 try { await ctx.answerCbQuery("Оплата подтверждена"); } catch {}
                 try { await ctx.editMessageReplyMarkup({ inline_keyboard: [] }); } catch {}
                 await ctx.reply("Готово. Файл отправлен.");

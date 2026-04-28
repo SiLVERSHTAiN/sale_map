@@ -89,6 +89,8 @@ async function ensurePgSchema() {
             paid_at TIMESTAMPTZ NOT NULL,
             last_downloaded_at TIMESTAMPTZ,
             telegram_payment_charge_id TEXT,
+            promo_code TEXT,
+            promo_discount_percent INTEGER,
             payload JSONB,
             PRIMARY KEY (user_id, product_id)
         );
@@ -96,6 +98,14 @@ async function ensurePgSchema() {
     await p.query(`
         ALTER TABLE purchases
         ADD COLUMN IF NOT EXISTS last_downloaded_at TIMESTAMPTZ;
+    `);
+    await p.query(`
+        ALTER TABLE purchases
+        ADD COLUMN IF NOT EXISTS promo_code TEXT;
+    `);
+    await p.query(`
+        ALTER TABLE purchases
+        ADD COLUMN IF NOT EXISTS promo_discount_percent INTEGER;
     `);
     await p.query(`
         CREATE TABLE IF NOT EXISTS users (
@@ -277,7 +287,14 @@ export function listPurchases(userId) {
     return [];
 }
 
-export function storePurchase({ userId, productId, telegramPaymentChargeId, payload }) {
+export function storePurchase({
+    userId,
+    productId,
+    telegramPaymentChargeId,
+    promoCode = null,
+    promoDiscountPercent = null,
+    payload,
+}) {
     if (!DATABASE_URL) {
         const db = readDb();
         const key = String(userId);
@@ -289,6 +306,11 @@ export function storePurchase({ userId, productId, telegramPaymentChargeId, payl
             paidAt: new Date().toISOString(),
             lastDownloadedAt: null,
             telegramPaymentChargeId,
+            promoCode: promoCode || null,
+            promoDiscountPercent:
+                Number.isFinite(Number(promoDiscountPercent))
+                    ? Number(promoDiscountPercent)
+                    : null,
             payload,
         };
 
@@ -334,21 +356,56 @@ export async function listPurchasesAsync(userId) {
     }));
 }
 
-export async function storePurchaseAsync({ userId, productId, telegramPaymentChargeId, payload }) {
+export async function storePurchaseAsync({
+    userId,
+    productId,
+    telegramPaymentChargeId,
+    promoCode = null,
+    promoDiscountPercent = null,
+    payload,
+}) {
     const p = getPool();
-    if (!p) return storePurchase({ userId, productId, telegramPaymentChargeId, payload });
+    if (!p) {
+        return storePurchase({
+            userId,
+            productId,
+            telegramPaymentChargeId,
+            promoCode,
+            promoDiscountPercent,
+            payload,
+        });
+    }
     await ensurePgSchema();
     await p.query(
         `
-        INSERT INTO purchases (user_id, product_id, paid_at, telegram_payment_charge_id, payload)
-        VALUES ($1, $2, NOW(), $3, $4)
+        INSERT INTO purchases (
+            user_id,
+            product_id,
+            paid_at,
+            telegram_payment_charge_id,
+            promo_code,
+            promo_discount_percent,
+            payload
+        )
+        VALUES ($1, $2, NOW(), $3, $4, $5, $6)
         ON CONFLICT (user_id, product_id)
         DO UPDATE SET
             paid_at = EXCLUDED.paid_at,
             telegram_payment_charge_id = EXCLUDED.telegram_payment_charge_id,
+            promo_code = EXCLUDED.promo_code,
+            promo_discount_percent = EXCLUDED.promo_discount_percent,
             payload = EXCLUDED.payload
         `,
-        [Number(userId), String(productId), telegramPaymentChargeId || null, payload || null]
+        [
+            Number(userId),
+            String(productId),
+            telegramPaymentChargeId || null,
+            promoCode ? String(promoCode) : null,
+            Number.isFinite(Number(promoDiscountPercent))
+                ? Number(promoDiscountPercent)
+                : null,
+            payload || null,
+        ]
     );
     void ensureAnalyticsMaintenanceAsync().catch(() => {});
 }
@@ -716,6 +773,17 @@ function setAppSettingLocal(key, value) {
     writeDb(db);
 }
 
+function setUserCanNotifyLocal(userId, canNotify) {
+    if (isAnalyticsUserExcluded(userId)) return;
+    const db = readDb();
+    ensureAnalytics(db);
+    const key = String(userId);
+    const current = db.analytics.users?.[key];
+    if (!current) return;
+    current.canNotify = Boolean(canNotify);
+    writeDb(db);
+}
+
 export async function getAppSettingAsync(key) {
     const p = getPool();
     if (!p) return getAppSettingLocal(key);
@@ -741,6 +809,20 @@ export async function setAppSettingAsync(key, value) {
             updated_at = NOW()
         `,
         [String(key), value ?? null]
+    );
+}
+
+export async function setUserCanNotifyAsync(userId, canNotify) {
+    const p = getPool();
+    if (!p) return setUserCanNotifyLocal(userId, canNotify);
+    await ensurePgSchema();
+    await p.query(
+        `
+        UPDATE users
+        SET can_notify = $2
+        WHERE user_id = $1
+        `,
+        [Number(userId), Boolean(canNotify)]
     );
 }
 

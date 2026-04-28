@@ -451,6 +451,7 @@ export function startApiServer({
                     userId: user.id,
                     username: user.username,
                     languageCode: user.languageCode,
+                    canNotify: true,
                     platform,
                     tgVersion,
                     startParam,
@@ -743,6 +744,10 @@ export function startApiServer({
                     txid,
                     product,
                     amountUsdt,
+                    promoCode: promoValidation.ok ? promoValidation.promo.code : null,
+                    promoDiscountPercent: promoValidation.ok
+                        ? promoValidation.promo.discountPercent
+                        : null,
                 });
                 return sendJson(res, 200, { ok: true });
             } catch (error) {
