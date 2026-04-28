@@ -6,6 +6,12 @@ const ENTITLEMENTS_KEY = 'entitlements.v2';
 const ENTITLEMENTS_TTL = 10 * 60 * 1000;
 const PENDING_PAYMENT_KEY = 'pending_payment.v1';
 const TRACK_SESSION_KEY = 'track.session.v1';
+const PROMO_CODE_KEY = 'promo.code.v1';
+const PROMO_DATA_KEY = 'promo.data.v1';
+
+let activePromoCode = '';
+let activePromo = null;
+let catalogRenderState = null;
 
 function applyTelegramTheme(){
     if (!isTg) return;
@@ -111,6 +117,139 @@ async function trackEvent(eventType, extra = {}){
     }catch(e){
         return null;
     }
+}
+
+function normalizePromoCode(value){
+    return String(value || '')
+        .trim()
+        .toUpperCase()
+        .replace(/\s+/g, '');
+}
+
+function readPromoCode(){
+    try{
+        return normalizePromoCode(localStorage.getItem(PROMO_CODE_KEY) || '');
+    }catch(e){
+        return '';
+    }
+}
+
+function writePromoState(code, promo){
+    activePromoCode = normalizePromoCode(code);
+    activePromo = promo && Number(promo.discountPercent) > 0 ? {
+        code: activePromoCode,
+        discountPercent: Number(promo.discountPercent)
+    } : null;
+    try{
+        if (activePromoCode) localStorage.setItem(PROMO_CODE_KEY, activePromoCode);
+        else localStorage.removeItem(PROMO_CODE_KEY);
+        if (activePromo) localStorage.setItem(PROMO_DATA_KEY, JSON.stringify(activePromo));
+        else localStorage.removeItem(PROMO_DATA_KEY);
+    }catch(e){}
+}
+
+function hydratePromoState(){
+    activePromoCode = readPromoCode();
+    try{
+        const raw = localStorage.getItem(PROMO_DATA_KEY);
+        const parsed = raw ? JSON.parse(raw) : null;
+        activePromo =
+            parsed && Number(parsed.discountPercent) > 0
+                ? { code: normalizePromoCode(parsed.code), discountPercent: Number(parsed.discountPercent) }
+                : null;
+    }catch(e){
+        activePromo = null;
+    }
+    if (!activePromo || activePromo.code !== activePromoCode) {
+        activePromo = null;
+    }
+}
+
+function applyPromoDiscount(rawAmount, discountPercent, kind){
+    const amount = Number(rawAmount || 0);
+    if (!Number.isFinite(amount) || amount <= 0) return 0;
+    const percent = Number(discountPercent || 0);
+    if (!Number.isFinite(percent) || percent <= 0) return amount;
+    const step = kind === 'usdt' ? 1 : 10;
+    const discounted = amount - amount * (percent / 100);
+    const floored = Math.floor(discounted / step) * step;
+    if (floored > 0) return floored;
+    return Math.max(1, Math.floor(discounted));
+}
+
+function getPromoPricing(product){
+    const promo = activePromo;
+    if (!promo || !Number(promo.discountPercent)) return null;
+    return {
+        priceRub: applyPromoDiscount(product?.priceRub, promo.discountPercent, 'rub'),
+        priceStars: applyPromoDiscount(product?.priceStars, promo.discountPercent, 'stars'),
+        priceUsdt: applyPromoDiscount(product?.priceUsdt, promo.discountPercent, 'usdt'),
+    };
+}
+
+async function validatePromoCodeRemote(code){
+    if (!API_BASE) return { ok: false, valid: false };
+    try{
+        const res = await fetch(`${API_BASE}/api/promo/validate`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ code: normalizePromoCode(code) })
+        });
+        return await res.json().catch(() => ({ ok: false, valid: false }));
+    }catch(e){
+        return { ok: false, valid: false };
+    }
+}
+
+function renderPromoBlock(){
+    const status = activePromo
+        ? `<div class="promo-status success">Промокод ${esc(activePromo.code)} активирован: -${esc(activePromo.discountPercent)}%</div>`
+        : '';
+    return `
+        <div class="promo-box">
+            <label class="promo-label">Промокод</label>
+            <div class="promo-row">
+                <input class="promo-input" type="text" autocomplete="off" placeholder="Введите промокод" value="${esc(activePromoCode)}" />
+                <button class="btn ghost promo-apply" type="button">Применить</button>
+            </div>
+            ${status}
+        </div>
+    `;
+}
+
+function rerenderCatalog(){
+    const state = catalogRenderState;
+    if (!state?.root || !state?.cities?.length) return;
+    state.root.innerHTML = state.cities.map(c => renderCityCard(c, state.products, state.purchasedSet, state.purchaseMap)).join('');
+    bindButtons(state.root);
+    bindPromoControls(state.root);
+    setupActiveCardTracking(state.root);
+    scrollToHash();
+}
+
+async function applyPromoCodeFromInput(code, triggerBtn){
+    const normalized = normalizePromoCode(code);
+    if (!normalized) {
+        writePromoState('', null);
+        rerenderCatalog();
+        return;
+    }
+    if (triggerBtn) {
+        triggerBtn.disabled = true;
+        triggerBtn.textContent = 'Проверка...';
+    }
+    const result = await validatePromoCodeRemote(normalized);
+    if (triggerBtn) {
+        triggerBtn.disabled = false;
+        triggerBtn.textContent = 'Применить';
+    }
+    if (result?.ok && result?.valid && result?.promo) {
+        writePromoState(normalized, result.promo);
+    } else {
+        writePromoState('', null);
+        alert('Промокод не найден или уже не действует.');
+    }
+    rerenderCatalog();
 }
 
 async function ensureTrackingSession(page){
@@ -472,7 +611,8 @@ function setupPendingAutoClose(){
 
 // ВАЖНО: теперь send принимает (action, productId)
 async function send(action, productId){
-    const payload = JSON.stringify({ action, productId });
+    const promoCode = activePromo ? activePromo.code : normalizePromoCode(document.querySelector('.promo-input')?.value || '');
+    const payload = JSON.stringify({ action, productId, promoCode: promoCode || undefined });
     if (!isTg){
         alert('Открой mini-приложение внутри Telegram.\n\n' + payload);
         return;
@@ -482,6 +622,7 @@ async function send(action, productId){
         const qs = new URLSearchParams();
         qs.set('product', String(productId || ''));
         if (initData) qs.set('tgWebAppData', initData);
+        if (promoCode) qs.set('promo', promoCode);
         qs.set('v', String(Date.now()));
         const target = `./usdt-pay.html?${qs.toString()}`;
         window.location.href = target;
@@ -496,7 +637,7 @@ async function send(action, productId){
             const res = await fetch(`${API_BASE}/api/yookassa/create`, {
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({ initData, productId })
+                body: JSON.stringify({ initData, productId, promoCode: promoCode || undefined })
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok || !data?.ok || !data?.confirmationUrl) {
@@ -523,7 +664,7 @@ async function send(action, productId){
             await fetch(`${API_BASE}/api/action`, {
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({ initData, action, productId })
+                body: JSON.stringify({ initData, action, productId, promoCode: promoCode || undefined })
             });
         }catch(e){}
         try { sessionStorage.removeItem(ENTITLEMENTS_KEY); } catch(e){}
@@ -616,12 +757,21 @@ function renderCityCard(city, products, purchasedSet, purchaseMap){
         ? hasUpdate(purchasedProduct, paidAt, lastDownloadedAt)
         : false;
     
-    const hasRubPay = full && Number(full.priceRub || 0) > 0;
-    const hasCryptoPay = full && Number(full.priceUsdt || 0) > 0;
-    const rubText = hasRubPay ? promoLabel(full.priceRub, full.priceRubOld) : '';
+    const promoPricing = full ? getPromoPricing(full) : null;
+    const fullPriceRub = promoPricing ? promoPricing.priceRub : Number(full?.priceRub || 0);
+    const fullPriceStars = promoPricing ? promoPricing.priceStars : Number(full?.priceStars || 0);
+    const fullPriceUsdt = promoPricing ? promoPricing.priceUsdt : Number(full?.priceUsdt || 0);
+    const hasRubPay = full && fullPriceRub > 0;
+    const hasCryptoPay = full && fullPriceUsdt > 0;
     const rubUrl = full?.payUrl ? String(full.payUrl) : '';
     const useCardApi = Boolean(API_BASE) && isTg;
     const showCardLink = !useCardApi && rubUrl;
+    const fullSubtitle = full ? (full.subtitle || starsLabel(fullPriceStars)) : '';
+    const fullPriceOldText = promoPricing
+        ? rubLabel(full?.priceRub)
+        : (full?.priceRubOld && Number(full.priceRubOld) > Number(full.priceRub || 0)
+            ? rubLabel(full.priceRubOld)
+            : '');
 
     return `
         <div class="card" id="city-${cid}" data-city="${esc(city.id)}">
@@ -634,6 +784,7 @@ function renderCityCard(city, products, purchasedSet, purchaseMap){
             </div>
         
             <div class="title">${esc(city.name)}</div>
+            ${!hasPurchase ? renderPromoBlock() : ''}
             <p class="lead">Готовый набор точек: еда, виды, прогулки, полезное.</p>
         
             <div class="row">
@@ -648,7 +799,7 @@ function renderCityCard(city, products, purchasedSet, purchaseMap){
                     ${full ? `
                         <div class="badge">
                             <div class="t">${esc(full.title || 'Full')}</div>
-                            <div class="v">${esc(full.subtitle || starsLabel(full.priceStars))}</div>
+                            <div class="v">${esc(fullSubtitle)}</div>
                         </div>` : ''
                     }
                 `}
@@ -674,22 +825,22 @@ function renderCityCard(city, products, purchasedSet, purchaseMap){
                         ${hasRubPay ? `
                             ${useCardApi ? `
                                 <button class="btn primary" data-action="CARD" data-product="${esc(full.id)}">
-                                    Оплатить картой ${esc(rubLabel(full.priceRub))}
-                                    ${full.priceRubOld && Number(full.priceRubOld) > Number(full.priceRub || 0)
-                                        ? ` <span class="price-old">${esc(rubLabel(full.priceRubOld))}</span>`
+                                    Оплатить картой ${esc(rubLabel(fullPriceRub))}
+                                    ${fullPriceOldText
+                                        ? ` <span class="price-old">${esc(fullPriceOldText)}</span>`
                                         : ''}
                                 </button>` : `
                                 ${showCardLink ? `
                                     <a class="btn primary" href="${esc(rubUrl)}" target="_blank" rel="noopener">
-                                        Оплатить картой ${esc(rubLabel(full.priceRub))}
-                                        ${full.priceRubOld && Number(full.priceRubOld) > Number(full.priceRub || 0)
-                                            ? ` <span class="price-old">${esc(rubLabel(full.priceRubOld))}</span>`
+                                        Оплатить картой ${esc(rubLabel(fullPriceRub))}
+                                        ${fullPriceOldText
+                                            ? ` <span class="price-old">${esc(fullPriceOldText)}</span>`
                                             : ''}
                                     </a>` : `
                                     <button class="btn primary disabled" disabled>
-                                        Оплатить картой ${esc(rubLabel(full.priceRub))}
-                                        ${full.priceRubOld && Number(full.priceRubOld) > Number(full.priceRub || 0)
-                                            ? ` <span class="price-old">${esc(rubLabel(full.priceRubOld))}</span>`
+                                        Оплатить картой ${esc(rubLabel(fullPriceRub))}
+                                        ${fullPriceOldText
+                                            ? ` <span class="price-old">${esc(fullPriceOldText)}</span>`
                                             : ''}
                                     </button>`
                                 }
@@ -697,11 +848,11 @@ function renderCityCard(city, products, purchasedSet, purchaseMap){
                         ` : ''}
                         ${hasCryptoPay ? `
                             <button class="btn crypto" data-action="MANUAL_PAY" data-product="${esc(full.id)}">
-                                Оплатить в USDT
+                                Оплатить в USDT ${esc(usdtLabel(fullPriceUsdt))}
                             </button>` : ''
                         }
                         <button class="btn ${hasRubPay ? '' : 'primary'}" data-action="BUY" data-product="${esc(full.id)}">
-                            ⭐ Купить (${esc(full.subtitle || starsLabel(full.priceStars))})
+                            ⭐ Купить (${esc(fullSubtitle)})
                         </button>` : ''
                     }
                     
@@ -887,6 +1038,24 @@ function bindButtons(root){
     });
 }
 
+function bindPromoControls(root){
+    root.querySelectorAll('.promo-apply').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+            const input = btn.closest('.promo-box')?.querySelector('.promo-input');
+            await applyPromoCodeFromInput(input?.value || '', btn);
+        });
+    });
+
+    root.querySelectorAll('.promo-input').forEach((input) => {
+        input.addEventListener('keydown', async (event) => {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            const btn = input.closest('.promo-box')?.querySelector('.promo-apply');
+            await applyPromoCodeFromInput(input.value || '', btn);
+        });
+    });
+}
+
 function scrollToHash(){
     const raw = window.location.hash || '';
     if (!raw) return;
@@ -904,6 +1073,7 @@ function scrollToHash(){
 }
 
 async function init(){
+    hydratePromoState();
     applyTelegramTheme();
     setStoreLinks(document);
     setupFloatingAction();
@@ -955,10 +1125,17 @@ async function init(){
         }
 
         hideSkeleton(el);
-        el.innerHTML = cities.map(c => renderCityCard(c, products, purchasedSet, purchaseMap)).join('');
-        bindButtons(el);
-        setupActiveCardTracking(el);
-        scrollToHash();
+        catalogRenderState = { root: el, cities, products, purchasedSet, purchaseMap };
+        const storedCode = readPromoCode();
+        if (storedCode) {
+            const result = await validatePromoCodeRemote(storedCode);
+            if (result?.ok && result?.valid && result?.promo) {
+                writePromoState(storedCode, result.promo);
+            } else {
+                writePromoState('', null);
+            }
+        }
+        rerenderCatalog();
     }catch(e){
         hideSkeleton(el);
         el.innerHTML = `<div class="error">Ошибка:\n${esc(e.message || e)}</div>`;

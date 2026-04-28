@@ -11,6 +11,11 @@ const el = {
     token: document.getElementById("admin-token"),
     days: document.getElementById("admin-days"),
     refresh: document.getElementById("admin-refresh"),
+    promoCode: document.getElementById("admin-promo-code"),
+    promoDiscount: document.getElementById("admin-promo-discount"),
+    promoSave: document.getElementById("admin-promo-save"),
+    promoDisable: document.getElementById("admin-promo-disable"),
+    promoMeta: document.getElementById("admin-promo-meta"),
     meta: document.getElementById("admin-meta"),
     error: document.getElementById("admin-error"),
     summary: document.getElementById("admin-summary"),
@@ -40,6 +45,12 @@ function clampDays(value) {
     const n = Number(value);
     if (!Number.isFinite(n)) return 30;
     return Math.max(1, Math.min(120, Math.floor(n)));
+}
+
+function clampDiscount(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return 10;
+    return Math.max(1, Math.min(95, Math.floor(n)));
 }
 
 function formatDateTime(iso) {
@@ -83,6 +94,12 @@ function setLoading(loading) {
     el.refresh.textContent = loading ? "Загрузка..." : "Обновить";
 }
 
+function setPromoLoading(loading) {
+    el.promoSave.disabled = loading;
+    el.promoDisable.disabled = loading;
+    el.promoSave.textContent = loading ? "Сохраняю..." : "Сохранить промокод";
+}
+
 function storageSet(key, value) {
     try {
         localStorage.setItem(key, value);
@@ -122,6 +139,17 @@ function hydrateSettings() {
     el.apiBase.value = savedApiBase || defaultApiBase;
     el.token.value = savedToken || "";
     el.days.value = String(clampDays(savedDays || 30));
+}
+
+function readPromoSettings() {
+    return {
+        code: String(el.promoCode.value || "").trim().toUpperCase(),
+        discountPercent: clampDiscount(el.promoDiscount.value),
+    };
+}
+
+function setPromoMeta(text) {
+    el.promoMeta.textContent = text || "—";
 }
 
 function toInt(value) {
@@ -334,20 +362,108 @@ async function loadAnalytics() {
     }
 }
 
+async function loadPromo() {
+    const settings = readSettings();
+    if (!settings.apiBase || !settings.token) return;
+
+    try {
+        const resp = await fetch(`${settings.apiBase}/api/admin/promo`, {
+            method: "GET",
+            headers: {
+                Authorization: `Bearer ${settings.token}`,
+            },
+        });
+        const text = await resp.text();
+        const data = text ? JSON.parse(text) : null;
+        if (!resp.ok || !data?.ok) {
+            throw new Error("Не удалось загрузить промокод.");
+        }
+        const promo = data.promo || {};
+        el.promoCode.value = promo.code || "";
+        el.promoDiscount.value = String(clampDiscount(promo.discountPercent || 10));
+        if (promo.enabled && promo.code) {
+            setPromoMeta(
+                `Активен: ${promo.code} · скидка ${numberFmt.format(
+                    clampDiscount(promo.discountPercent)
+                )}% · обновлено ${formatDateTime(promo.updatedAt)}`
+            );
+        } else {
+            setPromoMeta("Сейчас промокод отключён.");
+        }
+    } catch (error) {
+        setPromoMeta(error?.message || "Не удалось загрузить промокод.");
+    }
+}
+
+async function savePromo(enabled) {
+    const settings = readSettings();
+    saveSettings(settings);
+    if (!settings.apiBase) {
+        setError("Укажите API Base.");
+        return;
+    }
+    if (!settings.token) {
+        setError("Укажите admin token.");
+        return;
+    }
+
+    const promo = readPromoSettings();
+    setPromoLoading(true);
+    try {
+        const resp = await fetch(`${settings.apiBase}/api/admin/promo`, {
+            method: "POST",
+            headers: {
+                "content-type": "application/json",
+                Authorization: `Bearer ${settings.token}`,
+            },
+            body: JSON.stringify({
+                code: promo.code,
+                discountPercent: promo.discountPercent,
+                enabled,
+            }),
+        });
+        const text = await resp.text();
+        const data = text ? JSON.parse(text) : null;
+        if (!resp.ok || !data?.ok) {
+            throw new Error("Не удалось сохранить промокод.");
+        }
+        setError("");
+        await loadPromo();
+    } catch (error) {
+        setError(error?.message || "Не удалось сохранить промокод.");
+    } finally {
+        setPromoLoading(false);
+    }
+}
+
 function bindEvents() {
     el.refresh.addEventListener("click", () => {
         loadAnalytics();
+        loadPromo();
+    });
+
+    el.promoSave.addEventListener("click", () => {
+        savePromo(true);
+    });
+
+    el.promoDisable.addEventListener("click", () => {
+        savePromo(false);
     });
 
     el.days.addEventListener("blur", () => {
         el.days.value = String(clampDays(el.days.value));
     });
 
-    [el.apiBase, el.token, el.days].forEach((input) => {
+    [el.apiBase, el.token, el.days, el.promoCode, el.promoDiscount].forEach((input) => {
         input.addEventListener("keydown", (event) => {
             if (event.key === "Enter") {
                 event.preventDefault();
-                loadAnalytics();
+                if (input === el.promoCode || input === el.promoDiscount) {
+                    savePromo(true);
+                } else {
+                    loadAnalytics();
+                    loadPromo();
+                }
             }
         });
     });
@@ -359,6 +475,7 @@ function init() {
     setMeta("Заполните token и нажмите «Обновить».");
     if (el.token.value.trim()) {
         loadAnalytics();
+        loadPromo();
     }
 }
 

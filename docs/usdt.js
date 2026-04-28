@@ -3,6 +3,7 @@ const API_BASE = String(APP_CONFIG.API_BASE || "").replace(/\/$/, "");
 const USDT_ADDRESS = String(APP_CONFIG.USDT_TRC20_ADDRESS || "").trim();
 const USDT_NETWORK = String(APP_CONFIG.USDT_NETWORK || "TRC20").trim() || "TRC20";
 const TRACK_SESSION_KEY = "track.session.v1";
+let activePromo = null;
 
 function getTg(){
     return window.Telegram?.WebApp || null;
@@ -118,6 +119,35 @@ async function trackEvent(eventType, extra = {}){
             writeTrackSessionId(data.sessionId);
         }
         return data;
+    }catch(e){
+        return null;
+    }
+}
+
+function normalizePromoCode(value){
+    return String(value || '').trim().toUpperCase().replace(/\s+/g, '');
+}
+
+function applyPromoDiscount(rawAmount, discountPercent){
+    const amount = Number(rawAmount || 0);
+    const percent = Number(discountPercent || 0);
+    if (!Number.isFinite(amount) || amount <= 0) return 0;
+    if (!Number.isFinite(percent) || percent <= 0) return amount;
+    const discounted = amount - amount * (percent / 100);
+    const floored = Math.floor(discounted);
+    return floored > 0 ? floored : Math.max(1, Math.floor(discounted));
+}
+
+async function validatePromoCodeRemote(code){
+    if (!API_BASE) return null;
+    try{
+        const res = await fetch(`${API_BASE}/api/promo/validate`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ code: normalizePromoCode(code) })
+        });
+        const data = await res.json().catch(() => null);
+        return data?.ok && data?.valid ? data.promo : null;
     }catch(e){
         return null;
     }
@@ -305,7 +335,12 @@ async function submitRequest(productId){
         const res = await fetch(`${API_BASE}/api/usdt/request`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ initData, productId, txid })
+            body: JSON.stringify({
+                initData,
+                productId,
+                txid,
+                promoCode: activePromo?.code || undefined
+            })
         });
         const rawText = await res.text();
         let data = {};
@@ -359,7 +394,11 @@ async function init(){
 
     const params = new URLSearchParams(window.location.search);
     const productId = params.get('product');
+    const promoCode = normalizePromoCode(params.get('promo'));
     let resolvedProductId = productId || '';
+    if (promoCode) {
+        activePromo = await validatePromoCodeRemote(promoCode);
+    }
 
     try{
         const data = await loadCatalog();
@@ -379,14 +418,21 @@ async function init(){
         } else {
             const city = cities.find(c => c && c.id === product.cityId);
             const title = city ? `${city.name} — ${product.title || 'Полная версия'}` : (product.title || 'Полная версия');
+            const amountUsdt = activePromo
+                ? applyPromoDiscount(product.priceUsdt, activePromo.discountPercent)
+                : Number(product.priceUsdt || 0);
             q('#usdt-product').textContent = title;
-            q('#usdt-amount').textContent = formatUsdt(product.priceUsdt);
+            q('#usdt-amount').textContent = formatUsdt(amountUsdt);
             resolvedProductId = product.id || resolvedProductId;
             void trackEvent('usdt_page_open', {
                 page: 'usdt-pay',
                 productId: resolvedProductId,
                 city: city?.id || undefined,
-                payload: { amountUsdt: Number(product.priceUsdt || 0) || null, productFound: true }
+                payload: {
+                    amountUsdt: amountUsdt || null,
+                    productFound: true,
+                    promoCode: activePromo?.code || null
+                }
             });
         }
     }catch{

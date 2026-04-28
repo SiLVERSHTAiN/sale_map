@@ -439,6 +439,54 @@ body.info-open{
   font-size: 13px;
 }
 
+.promo-box{
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid var(--stroke);
+}
+
+.promo-label{
+  display:block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.promo-row{
+  display:flex;
+  gap:8px;
+  align-items:center;
+}
+
+.promo-input{
+  flex:1;
+  min-width:0;
+  background: rgba(255,255,255,.04);
+  color: var(--text);
+  border:1px solid var(--stroke);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 14px;
+  outline: none;
+}
+
+.promo-input:focus{
+  border-color: rgba(125,211,252,.65);
+  box-shadow: 0 0 0 4px rgba(56,189,248,.14);
+}
+
+.promo-status{
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.promo-status.success{
+  color: #86efac;
+}
+
 .row{
   display:flex;
   gap:10px;
@@ -864,6 +912,10 @@ a.btn{
   display: grid;
   grid-template-columns: 2fr 2fr minmax(120px, 160px);
   gap: 10px;
+}
+
+.admin-promo-grid{
+  grid-template-columns: 2fr minmax(120px, 180px);
 }
 
 .admin-actions{

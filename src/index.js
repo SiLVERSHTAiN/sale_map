@@ -5,11 +5,13 @@ import { Telegraf, Markup } from "telegraf";
 import { nanoid } from "nanoid";
 
 import {
+    getAppSettingAsync,
     getAdminLastTextAsync,
     getBroadcastDraftAsync,
     hasPurchaseAsync,
     listAllNotifiableUsersAsync,
     listCardCheckoutRecoveryCandidatesAsync,
+    listFreeGuideUsersAsync,
     logNotificationAsync,
     markDownloadAsync,
     removePurchaseAsync,
@@ -18,6 +20,13 @@ import {
     storePurchaseAsync,
 } from "./storage.js";
 import { startApiServer } from "./api.js";
+import {
+    applyPromoDiscount,
+    isPromoActive,
+    normalizePromoCode,
+    sanitizePromoConfig,
+    validatePromoCode,
+} from "./promo.js";
 
 // -------------------- ENV --------------------
 const BOT_TOKEN = process.env.BOT_TOKEN;
@@ -99,6 +108,20 @@ function getCatalog() {
     return readCatalog();
 }
 
+function applyProductPromo(product, promo) {
+    const active = isPromoActive(promo);
+    const priceRub = Number(product?.priceRub || 0);
+    const priceStars = Number(product?.priceStars || 0);
+    const priceUsdt = Number(product?.priceUsdt || 0);
+    return {
+        priceRub: active ? applyPromoDiscount(priceRub, promo.discountPercent, "rub") : priceRub,
+        priceStars: active
+            ? applyPromoDiscount(priceStars, promo.discountPercent, "stars")
+            : priceStars,
+        priceUsdt: active ? applyPromoDiscount(priceUsdt, promo.discountPercent, "usdt") : priceUsdt,
+    };
+}
+
 function resolveAssetFile(fileName) {
     const p = abs(path.join(ASSETS_DIR, fileName));
     if (!fs.existsSync(p)) throw new Error(`File not found: ${p}`);
@@ -174,8 +197,9 @@ function adminMenuKeyboard() {
 function broadcastsMenuKeyboard() {
     return Markup.inlineKeyboard([
         [Markup.button.callback("📝 Текст рассылки", "adm:menu:draft")],
-        [Markup.button.callback("🎯 Потенциальные покупатели", "adm:broadcast:recovery")],
-        [Markup.button.callback("👥 Все пользователи", "adm:broadcast:allusers")],
+        [Markup.button.callback("🎯 Нажали купить, но не оплатили", "adm:broadcast:recovery")],
+        [Markup.button.callback("🆓 Скачали бесплатную версию", "adm:broadcast:freeusers")],
+        [Markup.button.callback("👥 Все, кто заходил", "adm:broadcast:allusers")],
         [Markup.button.callback("⬅️ Назад", "adm:menu:root")],
     ]);
 }
@@ -235,7 +259,12 @@ function formatPreviewTime(value) {
 }
 
 function formatAudienceLabel(audience) {
-    return audience === "allusers" ? "Все пользователи" : "Потенциальные покупатели";
+    const map = {
+        recovery: "Нажали купить, но не оплатили",
+        freeusers: "Скачали бесплатную версию",
+        allusers: "Все, кто заходил",
+    };
+    return map[String(audience || "recovery")] || String(audience || "recovery");
 }
 
 function formatPresetLabel(preset) {
@@ -337,7 +366,8 @@ async function loadCardFixCandidatesByPreset(preset) {
 }
 
 async function loadBroadcastAudienceByPreset({ audience, preset }) {
-    const normalizedAudience = audience === "allusers" ? "allusers" : "recovery";
+    const normalizedAudience =
+        audience === "allusers" || audience === "freeusers" ? audience : "recovery";
     const { fromTs, toTs } = getPresetRange(preset);
     const campaignId = `broadcast:${normalizedAudience}:${preset}:${fromTs || "all"}:${toTs || "now"}`;
 
@@ -347,6 +377,25 @@ async function loadBroadcastAudienceByPreset({ audience, preset }) {
             limit: 5000,
         });
         return { audience: normalizedAudience, preset, fromTs, toTs, campaignId, candidates };
+    }
+
+    if (normalizedAudience === "freeusers") {
+        const rangeFrom = fromTs || "2020-01-01T00:00:00.000Z";
+        const rangeTo = toTs || new Date().toISOString();
+        const candidates = await listFreeGuideUsersAsync({
+            fromTs: rangeFrom,
+            toTs: rangeTo,
+            campaignId,
+            limit: 5000,
+        });
+        return {
+            audience: normalizedAudience,
+            preset,
+            fromTs: rangeFrom,
+            toTs: rangeTo,
+            campaignId,
+            candidates,
+        };
     }
 
     if (!fromTs || !toTs) {
@@ -616,8 +665,17 @@ async function handleAdminCallback(ctx, cbData) {
     if (cbData === "adm:broadcast:recovery") {
         try { await ctx.answerCbQuery(); } catch {}
         await ctx.reply(
-            "Аудитория: потенциальные покупатели без завершённой покупки.",
+            "Аудитория: пользователи, которые нажали купить, но не завершили покупку.",
             audienceMenuKeyboard("recovery")
+        );
+        return true;
+    }
+
+    if (cbData === "adm:broadcast:freeusers") {
+        try { await ctx.answerCbQuery(); } catch {}
+        await ctx.reply(
+            "Аудитория: пользователи, которые скачали бесплатную mini-версию и пока ничего не купили.",
+            audienceMenuKeyboard("freeusers")
         );
         return true;
     }
@@ -625,7 +683,7 @@ async function handleAdminCallback(ctx, cbData) {
     if (cbData === "adm:broadcast:allusers") {
         try { await ctx.answerCbQuery(); } catch {}
         await ctx.reply(
-            "Аудитория: все пользователи, у кого разрешены уведомления.",
+            "Аудитория: все пользователи, которые заходили в бота и не отключали уведомления.",
             audienceMenuKeyboard("allusers")
         );
         return true;
@@ -908,7 +966,7 @@ async function rejectUsdtPurchase({ userId, productId }) {
     );
 }
 
-async function handleBuy(ctx, productId) {
+async function handleBuy(ctx, productId, promoCode = "") {
     const { productsById, citiesById } = getCatalog();
     const product = productsById[productId];
 
@@ -938,10 +996,16 @@ async function handleBuy(ctx, productId) {
     }
 
     const city = citiesById[product.cityId];
+    const promoValidation = validatePromoCode(
+        sanitizePromoConfig(await getAppSettingAsync("promo_config")),
+        promoCode
+    );
+    const pricing = applyProductPromo(product, promoValidation.ok ? promoValidation.promo : null);
 
     const invoicePayload = JSON.stringify({
         productId: product.id,
         userId,
+        promoCode: promoValidation.ok ? promoValidation.promo.code : "",
         nonce: nanoid(10),
     });
 
@@ -955,13 +1019,13 @@ async function handleBuy(ctx, productId) {
         prices: [
             {
                 label: `${city?.name || "Guide"} — ${product.type || "product"}`,
-                amount: Number(product.priceStars || 0),
+                amount: Number(pricing.priceStars || 0),
             },
         ],
     });
 }
 
-async function handleBuyByUser(userId, productId) {
+async function handleBuyByUser(userId, productId, promoCode = "") {
     const { productsById, citiesById } = getCatalog();
     const product = productsById[productId];
 
@@ -988,9 +1052,15 @@ async function handleBuyByUser(userId, productId) {
     }
 
     const city = citiesById[product.cityId];
+    const promoValidation = validatePromoCode(
+        sanitizePromoConfig(await getAppSettingAsync("promo_config")),
+        promoCode
+    );
+    const pricing = applyProductPromo(product, promoValidation.ok ? promoValidation.promo : null);
     const invoicePayload = JSON.stringify({
         productId: product.id,
         userId,
+        promoCode: promoValidation.ok ? promoValidation.promo.code : "",
         nonce: nanoid(10),
     });
 
@@ -1004,7 +1074,7 @@ async function handleBuyByUser(userId, productId) {
         prices: [
             {
                 label: `${city?.name || "Guide"} — ${product.type || "product"}`,
-                amount: Number(product.priceStars || 0),
+                amount: Number(pricing.priceStars || 0),
             },
         ],
     });
@@ -1186,6 +1256,7 @@ async function handleWebAppAction(ctx, rawData) {
 
     const action = data.action;
     let productId = data.productId || null;
+    const promoCode = normalizePromoCode(data.promoCode);
 
     // legacy mapping
     if (!productId) {
@@ -1212,7 +1283,7 @@ async function handleWebAppAction(ctx, rawData) {
                 withWebAppKeyboard()
             );
         }
-        return handleBuy(ctx, productId);
+        return handleBuy(ctx, productId, promoCode);
     }
 
     await ctx.reply(
@@ -1221,7 +1292,7 @@ async function handleWebAppAction(ctx, rawData) {
     );
 }
 
-async function handleWebAppActionByUser({ userId, action, productId }) {
+async function handleWebAppActionByUser({ userId, action, productId, promoCode }) {
     const { defaultMiniProductId, defaultFullProductId } = getCatalog();
 
     let pid = productId || null;
@@ -1249,7 +1320,7 @@ async function handleWebAppActionByUser({ userId, action, productId }) {
                 withWebAppKeyboard()
             );
         }
-        return handleBuyByUser(userId, pid);
+        return handleBuyByUser(userId, pid, promoCode);
     }
     await bot.telegram.sendMessage(
         userId,

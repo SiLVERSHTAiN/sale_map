@@ -4,13 +4,22 @@ import fs from "fs";
 import path from "path";
 
 import {
+    getAppSettingAsync,
     createSessionAsync,
     getAdminAnalyticsAsync,
     listPurchasesAsync,
+    setAppSettingAsync,
     touchSessionEndedAsync,
     trackEventAsync,
     upsertUserAsync,
 } from "./storage.js";
+import {
+    applyPromoDiscount,
+    isPromoActive,
+    normalizePromoCode,
+    sanitizePromoConfig,
+    validatePromoCode,
+} from "./promo.js";
 
 function timingSafeEqualHex(a, b) {
     const aBuf = Buffer.from(a || "", "hex");
@@ -102,6 +111,25 @@ function normalizePayload(value, maxLen = 4000) {
     } catch {
         return null;
     }
+}
+
+async function getPromoConfigAsync() {
+    const raw = await getAppSettingAsync("promo_config");
+    return sanitizePromoConfig(raw);
+}
+
+function applyProductPromo(product, promo) {
+    const active = isPromoActive(promo);
+    const priceRub = Number(product?.priceRub || 0);
+    const priceStars = Number(product?.priceStars || 0);
+    const priceUsdt = Number(product?.priceUsdt || 0);
+    return {
+        priceRub: active ? applyPromoDiscount(priceRub, promo.discountPercent, "rub") : priceRub,
+        priceStars: active
+            ? applyPromoDiscount(priceStars, promo.discountPercent, "stars")
+            : priceStars,
+        priceUsdt: active ? applyPromoDiscount(priceUsdt, promo.discountPercent, "usdt") : priceUsdt,
+    };
 }
 
 function setCors(res) {
@@ -291,6 +319,65 @@ export function startApiServer({
             }
         }
 
+        if (url.pathname === "/api/admin/promo") {
+            const expectedToken = String(process.env.ADMIN_ANALYTICS_TOKEN || "").trim();
+            if (!expectedToken) {
+                return sendJson(res, 503, { ok: false, error: "admin_token_missing" });
+            }
+
+            const bearer = getBearerTokenFromHeader(req);
+            const queryToken = String(url.searchParams.get("token") || "").trim();
+            const providedToken = bearer || queryToken;
+            if (!providedToken || !timingSafeEqualString(providedToken, expectedToken)) {
+                return sendJson(res, 401, { ok: false, error: "unauthorized" });
+            }
+
+            if (req.method === "GET") {
+                const promo = await getPromoConfigAsync();
+                return sendJson(res, 200, { ok: true, promo });
+            }
+
+            if (req.method === "POST") {
+                if (!isJsonRequest) {
+                    return sendJson(res, 405, { ok: false, error: "method_not_allowed" });
+                }
+                const body = await readJsonBody(req);
+                const promo = sanitizePromoConfig({
+                    code: body?.code,
+                    discountPercent: body?.discountPercent,
+                    enabled: body?.enabled,
+                    updatedAt: new Date().toISOString(),
+                });
+                await setAppSettingAsync("promo_config", promo);
+                return sendJson(res, 200, { ok: true, promo });
+            }
+
+            return sendJson(res, 405, { ok: false, error: "method_not_allowed" });
+        }
+
+        if (url.pathname === "/api/promo/validate") {
+            if (req.method !== "POST" || !isJsonRequest) {
+                return sendJson(res, 405, { ok: false, error: "method_not_allowed" });
+            }
+
+            const body = await readJsonBody(req);
+            const promo = await getPromoConfigAsync();
+            const validation = validatePromoCode(promo, body?.code);
+            if (!validation.ok) {
+                return sendJson(res, 200, {
+                    ok: true,
+                    valid: false,
+                    reason: validation.reason,
+                });
+            }
+
+            return sendJson(res, 200, {
+                ok: true,
+                valid: true,
+                promo: validation.promo,
+            });
+        }
+
         if (url.pathname === "/api/entitlements") {
             let initData = url.searchParams.get("initData");
             if (!initData && req.method === "POST") {
@@ -419,6 +506,7 @@ export function startApiServer({
             const body = await readJsonBody(req);
             const initData = body?.initData;
             const productId = body?.productId;
+            const promoCode = normalizePromoCode(body?.promoCode);
 
             if (!initData || !productId) {
                 return sendJson(res, 400, { ok: false, error: "initData_or_product_missing" });
@@ -438,7 +526,10 @@ export function startApiServer({
             const products = Array.isArray(catalog?.products) ? catalog.products : [];
             const cities = Array.isArray(catalog?.cities) ? catalog.cities : [];
             const product = products.find((p) => p && p.id === productId && p.active !== false);
-            const amountValue = Number(product?.priceRub || 0);
+            const promo = await getPromoConfigAsync();
+            const promoValidation = validatePromoCode(promo, promoCode);
+            const pricing = applyProductPromo(product, promoValidation.ok ? promoValidation.promo : null);
+            const amountValue = Number(pricing.priceRub || 0);
 
             if (!product || !Number.isFinite(amountValue) || amountValue <= 0) {
                 return sendJson(res, 400, { ok: false, error: "invalid_product" });
@@ -471,6 +562,10 @@ export function startApiServer({
                 metadata: {
                     product_id: productId,
                     user_id: String(userId),
+                    promo_code: promoValidation.ok ? promoValidation.promo.code : "",
+                    promo_discount_percent: promoValidation.ok
+                        ? String(promoValidation.promo.discountPercent)
+                        : "",
                 },
             };
 
@@ -605,6 +700,7 @@ export function startApiServer({
             const initData = body?.initData;
             const productId = body?.productId;
             const txidRaw = String(body?.txid || "").trim();
+            const promoCode = normalizePromoCode(body?.promoCode);
             const txid = normalizeTronTxid(txidRaw);
 
             if (!initData || !productId || !txidRaw) {
@@ -627,7 +723,10 @@ export function startApiServer({
             const catalog = readCatalog();
             const products = Array.isArray(catalog?.products) ? catalog.products : [];
             const product = products.find((p) => p && p.id === productId && p.active !== false);
-            const amountUsdt = Number(product?.priceUsdt || 0);
+            const promo = await getPromoConfigAsync();
+            const promoValidation = validatePromoCode(promo, promoCode);
+            const pricing = applyProductPromo(product, promoValidation.ok ? promoValidation.promo : null);
+            const amountUsdt = Number(pricing.priceUsdt || 0);
 
             if (!product || !Number.isFinite(amountUsdt) || amountUsdt <= 0) {
                 return sendJson(res, 400, { ok: false, error: "invalid_product" });
@@ -669,6 +768,7 @@ export function startApiServer({
             const initData = body?.initData;
             const action = body?.action;
             const productId = body?.productId || null;
+            const promoCode = normalizePromoCode(body?.promoCode);
 
             if (!initData || !action) {
                 return sendJson(res, 400, { ok: false, error: "initData_or_action_missing" });
@@ -689,7 +789,7 @@ export function startApiServer({
             }
 
             try {
-                await onAction({ userId, action, productId });
+                await onAction({ userId, action, productId, promoCode });
                 return sendJson(res, 200, { ok: true });
             } catch (e) {
                 return sendJson(res, 500, { ok: false, error: "action_failed" });
