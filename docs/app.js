@@ -218,7 +218,7 @@ function renderPromoBlock(){
                 </span>
                 <span class="promo-toggle-icon">${promoExpanded ? '−' : '+'}</span>
             </button>
-            <div class="promo-panel">
+            <div class="promo-panel" ${promoExpanded ? '' : 'hidden'}>
                 <label class="promo-label">Промокод</label>
                 <div class="promo-row">
                     <input class="promo-input" type="text" autocomplete="off" placeholder="Введите промокод" value="${esc(activePromoCode)}" />
