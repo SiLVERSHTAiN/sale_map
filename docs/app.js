@@ -12,6 +12,7 @@ const PROMO_DATA_KEY = 'promo.data.v1';
 let activePromoCode = '';
 let activePromo = null;
 let catalogRenderState = null;
+let promoExpanded = false;
 
 function applyTelegramTheme(){
     if (!isTg) return;
@@ -202,18 +203,30 @@ async function validatePromoCodeRemote(code){
 }
 
 function renderPromoBlock(){
+    const summary = activePromo
+        ? `Активен: ${esc(activePromo.code)} · -${esc(activePromo.discountPercent)}%`
+        : 'Нажми, чтобы ввести код скидки';
     const status = activePromo
         ? `<div class="promo-status success">Промокод ${esc(activePromo.code)} активирован: -${esc(activePromo.discountPercent)}%</div>`
         : '';
     return `
-        <div class="promo-box">
-            <label class="promo-label">Промокод</label>
-            <div class="promo-row">
-                <input class="promo-input" type="text" autocomplete="off" placeholder="Введите промокод" value="${esc(activePromoCode)}" />
-                <button class="btn ghost promo-apply" type="button">Применить</button>
+        <section class="promo-box ${promoExpanded ? 'is-open' : ''}">
+            <button class="promo-toggle" type="button" aria-expanded="${promoExpanded ? 'true' : 'false'}">
+                <span class="promo-toggle-main">
+                    <span class="promo-toggle-title">🎟 Промокод</span>
+                    <span class="promo-toggle-subtitle">${summary}</span>
+                </span>
+                <span class="promo-toggle-icon">${promoExpanded ? '−' : '+'}</span>
+            </button>
+            <div class="promo-panel">
+                <label class="promo-label">Промокод</label>
+                <div class="promo-row">
+                    <input class="promo-input" type="text" autocomplete="off" placeholder="Введите промокод" value="${esc(activePromoCode)}" />
+                    <button class="btn ghost promo-apply" type="button">Применить</button>
+                </div>
+                ${status}
             </div>
-            ${status}
-        </div>
+        </section>
     `;
 }
 
@@ -236,17 +249,25 @@ function installInputDismissal(){
 function rerenderCatalog(){
     const state = catalogRenderState;
     if (!state?.root || !state?.cities?.length) return;
+    renderPromoSection();
     state.root.innerHTML = state.cities.map(c => renderCityCard(c, state.products, state.purchasedSet, state.purchaseMap)).join('');
     bindButtons(state.root);
-    bindPromoControls(state.root);
     setupActiveCardTracking(state.root);
     scrollToHash();
+}
+
+function renderPromoSection(){
+    const slot = document.getElementById('promo-slot');
+    if (!slot) return;
+    slot.innerHTML = renderPromoBlock();
+    bindPromoControls(slot);
 }
 
 async function applyPromoCodeFromInput(code, triggerBtn){
     const normalized = normalizePromoCode(code);
     if (!normalized) {
         writePromoState('', null);
+        promoExpanded = false;
         rerenderCatalog();
         return;
     }
@@ -261,9 +282,11 @@ async function applyPromoCodeFromInput(code, triggerBtn){
     }
     if (result?.ok && result?.valid && result?.promo) {
         writePromoState(normalized, result.promo);
+        promoExpanded = false;
     } else {
         writePromoState('', null);
         alert('Промокод не найден или уже не действует.');
+        promoExpanded = true;
     }
     rerenderCatalog();
 }
@@ -800,7 +823,6 @@ function renderCityCard(city, products, purchasedSet, purchaseMap){
             </div>
         
             <div class="title">${esc(city.name)}</div>
-            ${!hasPurchase ? renderPromoBlock() : ''}
             <p class="lead">Готовый набор точек: еда, виды, прогулки, полезное.</p>
         
             <div class="row">
@@ -1069,6 +1091,17 @@ function bindButtons(root){
 }
 
 function bindPromoControls(root){
+    root.querySelectorAll('.promo-toggle').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            promoExpanded = !promoExpanded;
+            renderPromoSection();
+            if (promoExpanded) {
+                const input = document.querySelector('.promo-input');
+                input?.focus({ preventScroll: true });
+            }
+        });
+    });
+
     root.querySelectorAll('.promo-apply').forEach((btn) => {
         btn.addEventListener('click', async () => {
             const input = btn.closest('.promo-box')?.querySelector('.promo-input');
@@ -1114,9 +1147,10 @@ async function init(){
     setupPendingAutoClose();
     const el = document.getElementById('catalog');
     const page = document.body?.dataset?.page || 'home';
+    renderPromoSection();
+    if (el) showSkeleton(el, page);
     await ensureTrackingSession(page);
     setupSessionEndTracking(page);
-    if (el) showSkeleton(el, page);
     try{
         const allowFetchEntitlements = page === 'home';
         const [data, entitlements] = await Promise.all([
