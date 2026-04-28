@@ -1090,11 +1090,15 @@ export async function listFreeGuideUsersAsync({
 }
 
 function listAllNotifiableUsersLocal({
+    fromTs = null,
+    toTs = null,
     campaignId = null,
     limit = 200,
 }) {
     const db = readDb();
     ensureAnalytics(db);
+    const fromMs = fromTs ? Date.parse(fromTs) : null;
+    const toMs = toTs ? Date.parse(toTs) : null;
 
     const alreadyNotifiedUsers = new Set();
     if (campaignId) {
@@ -1112,6 +1116,13 @@ function listAllNotifiableUsersLocal({
             if (isAnalyticsUserExcluded(userId)) return false;
             if (user?.canNotify === false) return false;
             if (alreadyNotifiedUsers.has(userId)) return false;
+            const lastSeenMs = Date.parse(user?.lastSeenAt || user?.firstSeenAt || "");
+            if (Number.isFinite(fromMs) && (!Number.isFinite(lastSeenMs) || lastSeenMs < fromMs)) {
+                return false;
+            }
+            if (Number.isFinite(toMs) && (!Number.isFinite(lastSeenMs) || lastSeenMs > toMs)) {
+                return false;
+            }
             return true;
         })
         .map((user) => ({
@@ -1128,12 +1139,14 @@ function listAllNotifiableUsersLocal({
 }
 
 export async function listAllNotifiableUsersAsync({
+    fromTs = null,
+    toTs = null,
     campaignId = null,
     limit = 200,
 }) {
     const p = getPool();
     if (!p) {
-        return listAllNotifiableUsersLocal({ campaignId, limit });
+        return listAllNotifiableUsersLocal({ fromTs, toTs, campaignId, limit });
     }
     await ensurePgSchema();
     const res = await p.query(
@@ -1150,11 +1163,19 @@ export async function listAllNotifiableUsersAsync({
            AND nl.status = 'sent'
         WHERE COALESCE(u.can_notify, TRUE) = TRUE
           AND ($1::text IS NULL OR nl.user_id IS NULL)
-          AND NOT (u.user_id = ANY($3::bigint[]))
+          AND ($2::timestamptz IS NULL OR u.last_seen_at >= $2::timestamptz)
+          AND ($3::timestamptz IS NULL OR u.last_seen_at <= $3::timestamptz)
+          AND NOT (u.user_id = ANY($5::bigint[]))
         ORDER BY u.last_seen_at DESC
-        LIMIT $2
+        LIMIT $4
         `,
-        [campaignId || null, clampInt(limit, 1, 5000, 200), ANALYTICS_EXCLUDE_USER_IDS]
+        [
+            campaignId || null,
+            fromTs || null,
+            toTs || null,
+            clampInt(limit, 1, 5000, 200),
+            ANALYTICS_EXCLUDE_USER_IDS,
+        ]
     );
 
     return res.rows.map((row) => ({

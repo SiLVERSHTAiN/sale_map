@@ -7,7 +7,6 @@ import { nanoid } from "nanoid";
 import {
     getAppSettingAsync,
     getAdminLastTextAsync,
-    getBroadcastDraftAsync,
     hasPurchaseAsync,
     listAllNotifiableUsersAsync,
     listCardCheckoutRecoveryCandidatesAsync,
@@ -17,7 +16,6 @@ import {
     removePurchaseAsync,
     setUserCanNotifyAsync,
     setAdminLastTextAsync,
-    setBroadcastDraftAsync,
     storePurchaseAsync,
 } from "./storage.js";
 import { startApiServer } from "./api.js";
@@ -218,41 +216,43 @@ function adminMenuKeyboard() {
 function broadcastsMenuKeyboard() {
     return Markup.inlineKeyboard([
         [Markup.button.callback("📝 Текст рассылки", "adm:menu:draft")],
-        [Markup.button.callback("🎯 Нажали купить, но не оплатили", "adm:broadcast:recovery")],
-        [Markup.button.callback("🆓 Скачали бесплатную версию", "adm:broadcast:freeusers")],
-        [Markup.button.callback("👥 Все, кто заходил", "adm:broadcast:allusers")],
+        [Markup.button.callback("🎯 Нажали купить, но не оплатили", "adm:broadcastmenu:recovery")],
+        [Markup.button.callback("🆓 Скачали бесплатную версию", "adm:broadcastmenu:freeusers")],
+        [Markup.button.callback("👥 Все, кто заходил", "adm:broadcastmenu:allusers")],
         [Markup.button.callback("⬅️ Назад", "adm:menu:root")],
     ]);
 }
 
 function draftMenuKeyboard() {
     return Markup.inlineKeyboard([
-        [Markup.button.callback("👀 Показать черновик", "adm:draft:show")],
-        [Markup.button.callback("💾 Сохранить последнее сообщение", "adm:draft:use_last")],
         [Markup.button.callback("⬅️ К рассылкам", "adm:menu:broadcasts")],
     ]);
 }
 
-function audienceMenuKeyboard(audience) {
+function audienceActionMenuKeyboard(audience) {
     const scope = String(audience || "recovery");
     return Markup.inlineKeyboard([
         [
-            Markup.button.callback("👀 Показать 1 день", `adm:broadcast:${scope}:preview:1d`),
-            Markup.button.callback("🚀 Отправить 1 день", `adm:broadcast:${scope}:send:1d`),
-        ],
-        [
-            Markup.button.callback("👀 Показать 7 дней", `adm:broadcast:${scope}:preview:7d`),
-            Markup.button.callback("🚀 Отправить 7 дней", `adm:broadcast:${scope}:send:7d`),
-        ],
-        [
-            Markup.button.callback("👀 Показать 30 дней", `adm:broadcast:${scope}:preview:30d`),
-            Markup.button.callback("🚀 Отправить 30 дней", `adm:broadcast:${scope}:send:30d`),
-        ],
-        [
-            Markup.button.callback("👀 Показать всех", `adm:broadcast:${scope}:preview:all`),
-            Markup.button.callback("🚀 Отправить всех", `adm:broadcast:${scope}:send:all`),
+            Markup.button.callback("👀 Показать", `adm:broadcastmode:${scope}:preview`),
+            Markup.button.callback("🚀 Отправить", `adm:broadcastmode:${scope}:send`),
         ],
         [Markup.button.callback("⬅️ К рассылкам", "adm:menu:broadcasts")],
+    ]);
+}
+
+function audiencePeriodMenuKeyboard(audience, mode) {
+    const scope = String(audience || "recovery");
+    const actionMode = String(mode || "preview");
+    return Markup.inlineKeyboard([
+        [
+            Markup.button.callback("1 день", `adm:broadcast:${scope}:${actionMode}:1d`),
+            Markup.button.callback("7 дней", `adm:broadcast:${scope}:${actionMode}:7d`),
+        ],
+        [
+            Markup.button.callback("30 дней", `adm:broadcast:${scope}:${actionMode}:30d`),
+            Markup.button.callback("Все", `adm:broadcast:${scope}:${actionMode}:all`),
+        ],
+        [Markup.button.callback("⬅️ Назад", `adm:broadcastmenu:${scope}`)],
     ]);
 }
 
@@ -407,6 +407,8 @@ async function loadBroadcastAudienceByPreset({ audience, preset }) {
 
     if (normalizedAudience === "allusers") {
         const candidates = await listAllNotifiableUsersAsync({
+            fromTs,
+            toTs,
             campaignId,
             limit: 5000,
         });
@@ -551,13 +553,13 @@ async function runCardFixSend({ fromTs, toTs, campaignId, candidates }) {
 }
 
 async function runBroadcastSend(payload) {
-    const draft = await getBroadcastDraftAsync();
-    const messageText = buildBroadcastMessage(draft?.text);
+    const lastText = await getAdminLastTextAsync();
+    const messageText = buildBroadcastMessage(lastText?.text);
     if (!messageText) {
         return {
             lines: [
-                "✍️ Черновик рассылки пуст.",
-                "Отправь мне обычным сообщением текст и в меню «Рассылки» нажми «Текст рассылки» → «Сохранить последнее сообщение».",
+                "✍️ Текст рассылки пока не найден.",
+                "Просто отправь боту обычным сообщением нужный текст, и он сразу станет текущим для рассылки.",
             ],
         };
     }
@@ -630,18 +632,10 @@ async function runBroadcastSend(payload) {
 }
 
 async function buildDraftStatusText() {
-    const [draft, lastText] = await Promise.all([
-        getBroadcastDraftAsync(),
-        getAdminLastTextAsync(),
-    ]);
-    const draftText = buildBroadcastMessage(draft?.text);
+    const lastText = await getAdminLastTextAsync();
     const lastMessageText = buildBroadcastMessage(lastText?.text);
     return [
         "📝 Текст рассылки",
-        "",
-        draftText
-            ? `Текущий черновик:\n${draftText}`
-            : "Текущий черновик: пока пусто.",
         "",
         lastMessageText
             ? `Последнее твоё сообщение:\n${lastMessageText}`
@@ -649,7 +643,7 @@ async function buildDraftStatusText() {
         "",
         "Как обновить текст:",
         "1. Отправь боту обычным сообщением нужный текст.",
-        "2. Нажми «Сохранить последнее сообщение».",
+        "2. Это сообщение автоматически станет текущим для рассылки.",
     ].join("\n");
 }
 
@@ -658,6 +652,8 @@ async function handleAdminCallback(ctx, cbData) {
         try { await ctx.answerCbQuery("Недостаточно прав", { show_alert: true }); } catch {}
         return true;
     }
+
+    const parts = String(cbData || "").split(":");
 
     if (cbData === "adm:menu:root") {
         try { await ctx.answerCbQuery(); } catch {}
@@ -677,51 +673,41 @@ async function handleAdminCallback(ctx, cbData) {
         return true;
     }
 
-    if (cbData === "adm:draft:show") {
-        try { await ctx.answerCbQuery(); } catch {}
-        await ctx.reply(await buildDraftStatusText(), draftMenuKeyboard());
-        return true;
-    }
-
-    if (cbData === "adm:draft:use_last") {
-        const lastText = await getAdminLastTextAsync();
-        const text = buildBroadcastMessage(lastText?.text);
-        if (!text) {
-            try { await ctx.answerCbQuery("Сначала пришли текст сообщением", { show_alert: true }); } catch {}
-            return true;
-        }
-        await setBroadcastDraftAsync({
-            text,
-            savedAt: new Date().toISOString(),
-        });
-        try { await ctx.answerCbQuery("Черновик сохранён"); } catch {}
-        await ctx.reply(await buildDraftStatusText(), draftMenuKeyboard());
-        return true;
-    }
-
-    if (cbData === "adm:broadcast:recovery") {
+    if (cbData === "adm:broadcastmenu:recovery") {
         try { await ctx.answerCbQuery(); } catch {}
         await ctx.reply(
             "Аудитория: пользователи, которые нажали купить, но не завершили покупку.",
-            audienceMenuKeyboard("recovery")
+            audienceActionMenuKeyboard("recovery")
         );
         return true;
     }
 
-    if (cbData === "adm:broadcast:freeusers") {
+    if (cbData === "adm:broadcastmenu:freeusers") {
         try { await ctx.answerCbQuery(); } catch {}
         await ctx.reply(
             "Аудитория: пользователи, которые скачали бесплатную mini-версию и пока ничего не купили.",
-            audienceMenuKeyboard("freeusers")
+            audienceActionMenuKeyboard("freeusers")
         );
         return true;
     }
 
-    if (cbData === "adm:broadcast:allusers") {
+    if (cbData === "adm:broadcastmenu:allusers") {
         try { await ctx.answerCbQuery(); } catch {}
         await ctx.reply(
             "Аудитория: все пользователи, которые заходили в бота и не отключали уведомления.",
-            audienceMenuKeyboard("allusers")
+            audienceActionMenuKeyboard("allusers")
+        );
+        return true;
+    }
+
+    if (parts[0] === "adm" && parts[1] === "broadcastmode") {
+        const audience = parts[2];
+        const mode = parts[3];
+        const modeLabel = mode === "send" ? "отправки" : "просмотра";
+        try { await ctx.answerCbQuery(); } catch {}
+        await ctx.reply(
+            `Аудитория: ${formatAudienceLabel(audience)}\nВыбери период для ${modeLabel}.`,
+            audiencePeriodMenuKeyboard(audience, mode)
         );
         return true;
     }
@@ -738,7 +724,6 @@ async function handleAdminCallback(ctx, cbData) {
         return true;
     }
 
-    const parts = String(cbData || "").split(":");
     if (parts[0] !== "adm" || parts[1] !== "broadcast") return false;
 
     const audience = parts[2];
@@ -748,7 +733,10 @@ async function handleAdminCallback(ctx, cbData) {
 
     if (mode === "preview") {
         try { await ctx.answerCbQuery("Собираю список"); } catch {}
-        await ctx.reply(buildBroadcastPreviewLines(payload).join("\n"), audienceMenuKeyboard(audience));
+        await ctx.reply(
+            buildBroadcastPreviewLines(payload).join("\n"),
+            audiencePeriodMenuKeyboard(audience, mode)
+        );
         return true;
     }
 
@@ -762,10 +750,10 @@ async function handleAdminCallback(ctx, cbData) {
                 `campaign_id: ${payload.campaignId}`,
                 `Кандидатов: ${payload.candidates.length}`,
             ].join("\n"),
-            audienceMenuKeyboard(audience)
+            audiencePeriodMenuKeyboard(audience, mode)
         );
         const result = await runBroadcastSend(payload);
-        await ctx.reply(result.lines.join("\n"), audienceMenuKeyboard(audience));
+        await ctx.reply(result.lines.join("\n"), audiencePeriodMenuKeyboard(audience, mode));
         return true;
     }
 
